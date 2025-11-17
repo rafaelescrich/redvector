@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RedVector API - AI Examples</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .result-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .result-item h4 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .result-item p {
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .score {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .examples {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .example-btn {
+            background: white;
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .example-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 RedVector API</h1>
+            <p>AI-Powered Vector Search Examples</p>
+        </div>
+        
+        <div class="content">
+            <!-- Create Index Section -->
+            <div class="section">
+                <h2>1. Create Index</h2>
+                <div class="form-group">
+                    <label for="indexName">Index Name:</label>
+                    <input type="text" id="indexName" value="semantic_search" placeholder="e.g., semantic_search">
+                </div>
+                <button onclick="createIndex()">Create Index</button>
+                <div id="indexStatus"></div>
+            </div>
+            
+            <!-- Add Documents Section -->
+            <div class="section">
+                <h2>2. Add Documents</h2>
+                <div class="form-group">
+                    <label for="docId">Document ID:</label>
+                    <input type="text" id="docId" placeholder="e.g., doc1">
+                </div>
+                <div class="form-group">
+                    <label for="docText">Document Text:</label>
+                    <textarea id="docText" placeholder="Enter text to index..."></textarea>
+                </div>
+                <div class="examples">
+                    <button class="example-btn" onclick="loadExample('doc1', 'Machine learning is a subset of artificial intelligence')">ML Example</button>
+                    <button class="example-btn" onclick="loadExample('doc2', 'Deep learning uses neural networks with multiple layers')">DL Example</button>
+                    <button class="example-btn" onclick="loadExample('doc3', 'Natural language processing enables computers to understand human language')">NLP Example</button>
+                    <button class="example-btn" onclick="loadExample('doc4', 'Computer vision allows machines to interpret visual information')">CV Example</button>
+                </div>
+                <button onclick="addDocument()">Add Document</button>
+                <div id="docStatus"></div>
+            </div>
+            
+            <!-- Search Section -->
+            <div class="section">
+                <h2>3. Semantic Search</h2>
+                <div class="form-group">
+                    <label for="searchQuery">Search Query:</label>
+                    <input type="text" id="searchQuery" placeholder="e.g., What is artificial intelligence?">
+                </div>
+                <div class="form-group">
+                    <label for="searchLimit">Results Limit:</label>
+                    <input type="number" id="searchLimit" value="5" min="1" max="20">
+                </div>
+                <div class="examples">
+                    <button class="example-btn" onclick="setQuery('What is artificial intelligence?')">AI Query</button>
+                    <button class="example-btn" onclick="setQuery('How do neural networks work?')">Neural Networks</button>
+                    <button class="example-btn" onclick="setQuery('Tell me about language processing')">Language Processing</button>
+                </div>
+                <button onclick="searchDocuments()">Search</button>
+                <div id="searchStatus"></div>
+                <div id="searchResults"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api';
+        let currentIndex = 'semantic_search';
+        
+        function showStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        async function createIndex() {
+            const indexName = document.getElementById('indexName').value || 'semantic_search';
+            currentIndex = indexName;
+            
+            showStatus('indexStatus', 'Creating index...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/index/${indexName}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus('indexStatus', `✅ ${data.data}`, 'success');
+                } else {
+                    showStatus('indexStatus', `❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus('indexStatus', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function addDocument() {
+            const docId = document.getElementById('docId').value;
+            const docText = document.getElementById('docText').value;
+            
+            if (!docId || !docText) {
+                showStatus('docStatus', '❌ Please fill in both ID and Text fields', 'error');
+                return;
+            }
+            
+            showStatus('docStatus', 'Adding document...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/index/${currentIndex}/document`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: docId,
+                        text: docText,
+                        metadata: {}
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus('docStatus', `✅ ${data.data}`, 'success');
+                    document.getElementById('docId').value = '';
+                    document.getElementById('docText').value = '';
+                } else {
+                    showStatus('docStatus', `❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus('docStatus', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function searchDocuments() {
+            const query = document.getElementById('searchQuery').value;
+            const limit = document.getElementById('searchLimit').value || 5;
+            
+            if (!query) {
+                showStatus('searchStatus', '❌ Please enter a search query', 'error');
+                return;
+            }
+            
+            showStatus('searchStatus', 'Searching...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/index/${currentIndex}/search?query=${encodeURIComponent(query)}&limit=${limit}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    showStatus('searchStatus', `✅ Found ${data.data.results.length} results`, 'success');
+                    displayResults(data.data.results);
+                } else {
+                    showStatus('searchStatus', `❌ ${data.error || 'No results found'}`, 'error');
+                    document.getElementById('searchResults').innerHTML = '';
+                }
+            } catch (error) {
+                showStatus('searchStatus', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('searchResults');
+            
+            if (results.length === 0) {
+                resultsDiv.innerHTML = '<div class="results"><p>No results found.</p></div>';
+                return;
+            }
+            
+            let html = '<div class="results"><h3>Search Results:</h3>';
+            
+            results.forEach((result, index) => {
+                html += `
+                    <div class="result-item">
+                        <h4>Result #${index + 1} (ID: ${result.id})</h4>
+                        <p><strong>Text:</strong> ${result.text}</p>
+                        <span class="score">Score: ${result.score.toFixed(4)}</span>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            resultsDiv.innerHTML = html;
+        }
+        
+        function loadExample(id, text) {
+            document.getElementById('docId').value = id;
+            document.getElementById('docText').value = text;
+        }
+        
+        function setQuery(query) {
+            document.getElementById('searchQuery').value = query;
+        }
+        
+        // Initialize: create index on load
+        window.addEventListener('load', () => {
+            createIndex();
+        });
+    </script>
+</body>
+</html>
+

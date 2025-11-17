@@ -14,3 +14,5 @@ parser = { path = "../parser" }
 rand = "0.3"
 response = { path = "../response" }
 util = { path = "../util" }
+lazy_static = "1.4"
+redisearch-platform-core = { path = "../../redisearch-platform/platform-core" }

@@ -20,6 +20,9 @@ use parser::{Argument, OwnedParsedCommand, ParsedCommand};
 use response::{Response, ResponseError};
 use util::{mstime, ustime};
 
+// Import FT command handlers
+use crate::ft_commands::{ft_create, ft_search, ft_info, ft_drop, ft_add, ft_del};
+
 extern crate rand;
 
 macro_rules! opt_validate {
@@ -4246,6 +4249,7 @@ fn command_cmd(parser: &mut ParsedCommand, _db: &Database) -> Response {
             "psubscribe", "punsubscribe", "publish", "pubsub", "watch", "unwatch", "restore",
             "dump", "object", "client", "time", "bitop", "bitcount", "bitpos", "wait", "command",
             "pfadd", "pfcount", "pfmerge",
+            "ft.create", "ft.search", "ft.info", "ft.drop", "ft.add", "ft.del",
         ];
         for cmd_name in commands {
             let props = command_properties(cmd_name);
@@ -4711,6 +4715,13 @@ fn command_properties(command_name: &str) -> CommandProperties {
         "pfmerge" => (-2, wm, 1, -1, 1),
         "pfdebug" => (-3, WRITE, 0, 0, 0),
         "latency" => (-2, ars | ls, 0, 0, 0),
+        // RediSearch (FT.*) commands
+        "ft.create" => (-3, WRITE, 0, 0, 0),
+        "ft.search" => (-3, READONLY, 0, 0, 0),
+        "ft.info" => (2, READONLY, 0, 0, 0),
+        "ft.drop" => (-2, WRITE, 0, 0, 0),
+        "ft.add" => (-5, WRITE, 0, 0, 0),
+        "ft.del" => (-3, WRITE, 0, 0, 0),
         _ => (0, CommandFlags::empty(), 0, 0, 0),
     };
 
@@ -4746,11 +4757,43 @@ fn execute_command(
     if parser.argv.is_empty() {
         return Err(ResponseError::NoReply);
     }
-    let command_name = &*match db.mapped_command(
-        &try_opt_validate!(parser.get_str(0), "Invalid command").to_ascii_lowercase(),
-    ) {
-        Some(c) => c,
-        None => return Ok(Response::Error("unknown command".to_owned())),
+    let raw_command = try_opt_validate!(parser.get_str(0), "Invalid command");
+    let lower_command = raw_command.to_ascii_lowercase();
+    
+    // For FT.* commands, bypass mapped_command to ensure they're allowed
+    // Check both lowercase and original case to handle any edge cases
+    let is_ft_command = lower_command.starts_with("ft.");
+    
+    // Debug logging
+    if raw_command.to_uppercase().starts_with("FT.") || lower_command.starts_with("ft.") {
+        eprintln!("DEBUG: FT command detected: raw='{}', lower='{}', is_ft={}", raw_command, lower_command, is_ft_command);
+    }
+    
+    let command_name = if is_ft_command {
+        // FT.* commands - use directly, don't go through mapped_command
+        // Normalize to lowercase for consistency
+        &*lower_command
+    } else {
+        // Other commands - use mapped_command
+        &*match db.mapped_command(&lower_command) {
+            Some(c) => c,
+            None => {
+                // Format error message in Redis-compatible format
+                let mut args_str = String::new();
+                if parser.argv.len() > 1 {
+                    let mut args = Vec::new();
+                    for i in 1..std::cmp::min(parser.argv.len(), 4) {
+                        if let Ok(arg) = parser.get_str(i) {
+                            args.push(format!("'{}'", arg));
+                        }
+                    }
+                    if !args.is_empty() {
+                        args_str = format!(", with args beginning with: {}", args.join(" "));
+                    }
+                }
+                return Ok(Response::Error(format!("ERR unknown command '{}'{}", raw_command, args_str)));
+            }
+        }
     };
 
     *write = !command_properties(command_name)
@@ -4985,7 +5028,29 @@ fn execute_command(
         "command" => command_cmd(parser, db),
         "wait" => wait_cmd(parser, db),
         "slowlog" => slowlog(parser, db),
-        cmd => Response::Error(format!("ERR unknown command \"{}\"", cmd)),
+        // RediSearch (FT.*) commands - MUST be before catch-all
+        "ft.create" => ft_create(parser, db, dbindex),
+        "ft.search" => ft_search(parser, db, dbindex),
+        "ft.info" => ft_info(parser, db, dbindex),
+        "ft.drop" => ft_drop(parser, db, dbindex),
+        "ft.add" => ft_add(parser, db, dbindex),
+        "ft.del" => ft_del(parser, db, dbindex),
+        // Catch-all for FT.* commands (handles any case variations or unknown FT subcommands)
+        cmd if cmd.starts_with("ft.") => {
+            let subcmd = &cmd[3..]; // Remove "ft." prefix
+            match subcmd {
+                "create" => ft_create(parser, db, dbindex),
+                "search" => ft_search(parser, db, dbindex),
+                "info" => ft_info(parser, db, dbindex),
+                "drop" => ft_drop(parser, db, dbindex),
+                "add" => ft_add(parser, db, dbindex),
+                "del" => ft_del(parser, db, dbindex),
+                _ => Response::Error(format!("ERR unknown FT subcommand \"{}\"", subcmd)),
+            }
+        },
+        cmd => {
+            Response::Error(format!("ERR_UNKNOWN_CMD_MATCH:{}", cmd))
+        },
     })
 }
 
@@ -5125,6 +5190,19 @@ mod test_command {
         let exp = db.get_msexpiration(0, &b"key3".to_vec()).unwrap().clone();
         assert!(exp >= now + 1233 * 1000);
         assert!(exp <= now + 1234 * 1000);
+    }
+
+    #[test]
+    fn ft_create_command_dispatches() {
+        let mut db = Database::new(Config::new(Logger::new(Level::Warning)));
+        let mut client = Client::mock();
+        let response = command(
+            parser!(b"FT.CREATE test_idx SCHEMA vector VECTOR(4)"),
+            &mut db,
+            &mut client,
+        )
+        .unwrap();
+        assert_eq!(response, Response::Status("OK".to_owned()));
     }
 
     #[test]

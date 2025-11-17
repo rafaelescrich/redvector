@@ -30,6 +30,7 @@ fn main() {
     if !daemonize {
         println!("Port: {}", port);
         println!("PID: {}", getpid());
+        println!("RediSearch: Enabled (FT.* commands available)");
     }
     server.run();
 }

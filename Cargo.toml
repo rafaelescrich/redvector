@@ -1,7 +1,7 @@
 [package]
 name = "rsedis"
 version = "0.0.1"
-authors = [ "Sebastian Waisbrot <seppo0010@gmail.com>" ]
+authors = [ "Rafael Escrich <rafaelescrich@gmail.com>" ]
 exclude = [
     ".gitignore",
     ".travis.yml",
@@ -29,6 +29,7 @@ path = "response"
 
 [dependencies.database]
 path = "database"
+features = []
 
 [dependencies.command]
 path = "command"
@@ -41,3 +42,8 @@ path = "logger"
 
 [dependencies.compat]
 path = "compat"
+
+[features]
+default = []
+vector-search = ["command/vector-search"]
+hnsw-backend = ["database/hnsw-backend", "command/hnsw-backend"]

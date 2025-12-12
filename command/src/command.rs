@@ -20,7 +20,8 @@ use parser::{Argument, OwnedParsedCommand, ParsedCommand};
 use response::{Response, ResponseError};
 use util::{mstime, ustime};
 
-// Import FT command handlers
+// Import FT command handlers (only when vector-search feature is enabled)
+#[cfg(feature = "vector-search")]
 use crate::ft_commands::{ft_create, ft_search, ft_info, ft_drop, ft_add, ft_del};
 
 extern crate rand;
@@ -4249,8 +4250,12 @@ fn command_cmd(parser: &mut ParsedCommand, _db: &Database) -> Response {
             "psubscribe", "punsubscribe", "publish", "pubsub", "watch", "unwatch", "restore",
             "dump", "object", "client", "time", "bitop", "bitcount", "bitpos", "wait", "command",
             "pfadd", "pfcount", "pfmerge",
-            "ft.create", "ft.search", "ft.info", "ft.drop", "ft.add", "ft.del",
         ];
+        #[cfg(feature = "vector-search")]
+        let mut commands = commands;
+        #[cfg(feature = "vector-search")]
+        commands.extend_from_slice(&["ft.create", "ft.search", "ft.info", "ft.drop", "ft.add", "ft.del"]);
+        let commands = commands;
         for cmd_name in commands {
             let props = command_properties(cmd_name);
             let mut cmd_info = Vec::new();
@@ -4715,12 +4720,18 @@ fn command_properties(command_name: &str) -> CommandProperties {
         "pfmerge" => (-2, wm, 1, -1, 1),
         "pfdebug" => (-3, WRITE, 0, 0, 0),
         "latency" => (-2, ars | ls, 0, 0, 0),
-        // RediSearch (FT.*) commands
+        // RediSearch (FT.*) commands (only when vector-search feature is enabled)
+        #[cfg(feature = "vector-search")]
         "ft.create" => (-3, WRITE, 0, 0, 0),
+        #[cfg(feature = "vector-search")]
         "ft.search" => (-3, READONLY, 0, 0, 0),
+        #[cfg(feature = "vector-search")]
         "ft.info" => (2, READONLY, 0, 0, 0),
+        #[cfg(feature = "vector-search")]
         "ft.drop" => (-2, WRITE, 0, 0, 0),
+        #[cfg(feature = "vector-search")]
         "ft.add" => (-5, WRITE, 0, 0, 0),
+        #[cfg(feature = "vector-search")]
         "ft.del" => (-3, WRITE, 0, 0, 0),
         _ => (0, CommandFlags::empty(), 0, 0, 0),
     };
@@ -5028,14 +5039,21 @@ fn execute_command(
         "command" => command_cmd(parser, db),
         "wait" => wait_cmd(parser, db),
         "slowlog" => slowlog(parser, db),
-        // RediSearch (FT.*) commands - MUST be before catch-all
+        // RediSearch (FT.*) commands - MUST be before catch-all (only when vector-search feature is enabled)
+        #[cfg(feature = "vector-search")]
         "ft.create" => ft_create(parser, db, dbindex),
+        #[cfg(feature = "vector-search")]
         "ft.search" => ft_search(parser, db, dbindex),
+        #[cfg(feature = "vector-search")]
         "ft.info" => ft_info(parser, db, dbindex),
+        #[cfg(feature = "vector-search")]
         "ft.drop" => ft_drop(parser, db, dbindex),
+        #[cfg(feature = "vector-search")]
         "ft.add" => ft_add(parser, db, dbindex),
+        #[cfg(feature = "vector-search")]
         "ft.del" => ft_del(parser, db, dbindex),
         // Catch-all for FT.* commands (handles any case variations or unknown FT subcommands)
+        #[cfg(feature = "vector-search")]
         cmd if cmd.starts_with("ft.") => {
             let subcmd = &cmd[3..]; // Remove "ft." prefix
             match subcmd {
@@ -5047,6 +5065,10 @@ fn execute_command(
                 "del" => ft_del(parser, db, dbindex),
                 _ => Response::Error(format!("ERR unknown FT subcommand \"{}\"", subcmd)),
             }
+        },
+        #[cfg(not(feature = "vector-search"))]
+        cmd if cmd.starts_with("ft.") => {
+            Response::Error("ERR FT.* commands not available (vector-search feature not enabled)".to_owned())
         },
         cmd => {
             Response::Error(format!("ERR_UNKNOWN_CMD_MATCH:{}", cmd))
@@ -5114,7 +5136,7 @@ mod test_command {
 
     fn getstr(database: &Database, key: &[u8]) -> String {
         match database.get(0, &key.to_vec()).unwrap() {
-            &Value::String(value) => from_utf8(&*value.to_vec()).unwrap().to_owned(),
+            Value::String(value) => from_utf8(&*value.to_vec()).unwrap().to_owned(),
             _ => panic!("Got non-string"),
         }
     }
@@ -5193,6 +5215,7 @@ mod test_command {
     }
 
     #[test]
+    #[cfg(feature = "vector-search")]
     fn ft_create_command_dispatches() {
         let mut db = Database::new(Config::new(Logger::new(Level::Warning)));
         let mut client = Client::mock();
@@ -6342,7 +6365,7 @@ mod test_command {
                 let mut array = arr
                     .iter()
                     .map(|x| match x {
-                        &Response::Data(d) => d.clone(),
+                        Response::Data(d) => d.clone(),
                         _ => panic!("Expected data"),
                     })
                     .collect::<Vec<_>>();
@@ -6496,7 +6519,7 @@ mod test_command {
         let mut r = arr
             .iter()
             .map(|el| match el {
-                &Response::Data(el) => el.clone(),
+                Response::Data(el) => el.clone(),
                 _ => panic!("Expected data"),
             })
             .collect::<Vec<_>>();
@@ -6551,7 +6574,7 @@ mod test_command {
         let mut r = arr
             .iter()
             .map(|el| match el {
-                &Response::Data(el) => el.clone(),
+                Response::Data(el) => el.clone(),
                 _ => panic!("Expected data"),
             })
             .collect::<Vec<_>>();
@@ -6573,7 +6596,7 @@ mod test_command {
         let mut r = arr
             .iter()
             .map(|el| match el {
-                &Response::Data(el) => el.clone(),
+                Response::Data(el) => el.clone(),
                 _ => panic!("Expected data"),
             })
             .collect::<Vec<_>>();
@@ -6636,7 +6659,7 @@ mod test_command {
         let mut r = arr
             .iter()
             .map(|el| match el {
-                &Response::Data(el) => el.clone(),
+                Response::Data(el) => el.clone(),
                 _ => panic!("Expected data"),
             })
             .collect::<Vec<_>>();
@@ -6658,7 +6681,7 @@ mod test_command {
         let mut r = arr
             .iter()
             .map(|el| match el {
-                &Response::Data(el) => el.clone(),
+                Response::Data(el) => el.clone(),
                 _ => panic!("Expected data"),
             })
             .collect::<Vec<_>>();

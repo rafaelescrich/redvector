@@ -176,52 +176,52 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Integration with real embedding models
-/// 
-/// To use real embeddings, replace `generate_embedding` with one of these:
-/// 
-/// ### Python (sentence-transformers)
-/// ```python
-/// from sentence_transformers import SentenceTransformer
-/// model = SentenceTransformer('all-MiniLM-L6-v2')  # 384 dimensions
-/// embedding = model.encode(text)
-/// ```
-/// 
-/// ### Rust (rust-bert)
-/// ```rust
-/// use rust_bert::pipelines::sentence_embeddings::{
-///     SentenceEmbeddingsBuilder, SentenceEmbeddingsModelType
-/// };
-/// 
-/// let model = SentenceEmbeddingsBuilder::remote(
-///     SentenceEmbeddingsModelType::AllMiniLmL6V2
-/// ).create_model()?;
-/// 
-/// let embeddings = model.encode(&[text])?;
-/// ```
-/// 
-/// ### OpenAI API
-/// ```rust
-/// use openai_api_rust::*;
-/// 
-/// let auth = Auth::from_env().unwrap();
-/// let openai = OpenAI::new(auth, "https://api.openai.com/v1/");
-/// 
-/// let embedding = openai.embeddings_create(
-///     "text-embedding-ada-002",
-///     text
-/// )?;
-/// ```
-/// 
-/// ### Cohere API
-/// ```rust
-/// use cohere_rust::api::EmbedRequest;
-/// 
-/// let client = cohere_rust::Client::new("YOUR_API_KEY");
-/// let embedding = client.embed(EmbedRequest {
-///     texts: vec![text],
-///     model: Some("embed-english-v2.0".to_string()),
-///     ..Default::default()
-/// })?;
-/// ```
+// Integration with real embedding models
+// 
+// To use real embeddings, replace `generate_embedding` with one of these:
+// 
+// ### Python (sentence-transformers)
+// ```python
+// from sentence_transformers import SentenceTransformer
+// model = SentenceTransformer('all-MiniLM-L6-v2')  # 384 dimensions
+// embedding = model.encode(text)
+// ```
+// 
+// ### Rust (rust-bert)
+// ```rust
+// use rust_bert::pipelines::sentence_embeddings::{
+//     SentenceEmbeddingsBuilder, SentenceEmbeddingsModelType
+// };
+// 
+// let model = SentenceEmbeddingsBuilder::remote(
+//     SentenceEmbeddingsModelType::AllMiniLmL6V2
+// ).create_model()?;
+// 
+// let embeddings = model.encode(&[text])?;
+// ```
+// 
+// ### OpenAI API
+// ```rust
+// use openai_api_rust::*;
+// 
+// let auth = Auth::from_env().unwrap();
+// let openai = OpenAI::new(auth, "https://api.openai.com/v1/");
+// 
+// let embedding = openai.embeddings_create(
+//     "text-embedding-ada-002",
+//     text
+// )?;
+// ```
+// 
+// ### Cohere API
+// ```rust
+// use cohere_rust::api::EmbedRequest;
+// 
+// let client = cohere_rust::Client::new("YOUR_API_KEY");
+// let embedding = client.embed(EmbedRequest {
+//     texts: vec![text],
+//     model: Some("embed-english-v2.0".to_string()),
+//     ..Default::default()
+// })?;
+// ```
 

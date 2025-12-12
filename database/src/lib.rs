@@ -12,6 +12,9 @@ extern crate response;
 extern crate skiplist;
 extern crate util;
 
+#[cfg(feature = "hnsw-backend")]
+extern crate hnsw_rs;
+
 pub mod dbutil;
 pub mod error;
 pub mod hash;
@@ -19,6 +22,10 @@ pub mod list;
 pub mod set;
 pub mod string;
 pub mod zset;
+#[cfg(feature = "hnsw-backend")]
+pub mod vector_index;
+#[cfg(all(test, feature = "hnsw-backend"))]
+mod vector_index_test;
 
 use std::collections::Bound;
 use std::collections::HashMap;

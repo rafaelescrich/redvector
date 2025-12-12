@@ -11,9 +11,16 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
+mod grpc;
+mod sql;
+
+use grpc::VectorServiceImpl;
+use sql::SqlExecutor;
+
 #[derive(Clone)]
 struct AppState {
     redis_client: Arc<redis::Client>,
+    sql_executor: Arc<SqlExecutor>,
 }
 
 #[derive(Deserialize)]
@@ -430,6 +437,40 @@ async fn index() -> Html<&'static str> {
     Html(include_str!("../static/index.html"))
 }
 
+/// SQL query endpoint
+/// POST /api/sql
+/// Body: { "query": "SELECT * FROM collection WHERE vector = '[0.1, 0.2, ...]' LIMIT 10" }
+#[derive(Deserialize)]
+struct SqlRequest {
+    query: String,
+}
+
+async fn execute_sql(
+    State(state): State<AppState>,
+    Json(req): Json<SqlRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
+    match state.sql_executor.execute(&req.query) {
+        Ok(result) => {
+            let json_result = serde_json::json!({
+                "columns": result.columns,
+                "rows": result.rows,
+            });
+            Ok(Json(ApiResponse {
+                success: true,
+                data: Some(json_result),
+                error: None,
+            }))
+        }
+        Err(e) => {
+            Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                error: Some(e.to_string()),
+            }))
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -439,37 +480,72 @@ async fn main() {
     tracing::info!("Starting RedVector API Server...");
     
     // Connect to RedVector (rsedis)
-    let redis_client = redis::Client::open("redis://127.0.0.1:6379/")
-        .expect("Failed to connect to RedVector");
+    let redis_client = Arc::new(redis::Client::open("redis://127.0.0.1:6379/")
+        .expect("Failed to connect to RedVector"));
+    
+    let sql_executor = Arc::new(SqlExecutor::new(Arc::clone(&redis_client)));
     
     let app_state = AppState {
-        redis_client: Arc::new(redis_client),
+        redis_client: Arc::clone(&redis_client),
+        sql_executor: Arc::clone(&sql_executor),
     };
     
+    // REST API routes
     let app = Router::new()
         .route("/", get(index))
         .route("/health", get(health))
         .route("/api/index/:index_name", post(create_index))
         .route("/api/index/:index_name/document", post(add_document))
         .route("/api/index/:index_name/search", get(search))
+        .route("/api/sql", post(execute_sql))
         .nest_service("/static", ServeDir::new("static"))
         .layer(CorsLayer::permissive())
         .with_state(app_state);
     
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8081")
+    // Start REST server
+    let rest_listener = tokio::net::TcpListener::bind("0.0.0.0:8888")
         .await
-        .expect("Failed to bind to port 8081");
+        .expect("Failed to bind to port 8888");
     
-    println!("🚀 RedVector API Server running on http://localhost:8081");
-    println!("📊 Frontend available at http://localhost:8081");
-    println!("🔍 API endpoints:");
+    // Start gRPC server
+    let grpc_service = VectorServiceImpl::new(redis_client.clone());
+    let grpc_addr = "0.0.0.0:50051".parse().expect("Invalid gRPC address");
+    
+    println!("🚀 RedVector API Server starting...");
+    println!("📊 REST API: http://localhost:8888");
+    println!("🔌 gRPC API: http://localhost:50051");
+    println!("🔍 REST endpoints:");
     println!("   GET  /health");
     println!("   POST /api/index/:index_name");
     println!("   POST /api/index/:index_name/document");
     println!("   GET  /api/index/:index_name/search?query=...&limit=10");
+    println!("   POST /api/sql");
+    println!("🔍 gRPC endpoints:");
+    println!("   CreateCollection, Upsert, Search, GetCollectionInfo, DeleteCollection");
     
-    axum::serve(listener, app)
-        .await
-        .expect("Server failed");
+    // Run both servers concurrently
+    tokio::select! {
+        rest_result = axum::serve(rest_listener, app) => {
+            rest_result.expect("REST server failed");
+        }
+        grpc_result = {
+            let svc = grpc::vector_service::vector_service_server::VectorServiceServer::new(grpc_service);
+            
+            // Enable reflection for grpcurl
+            // The file descriptor is generated during build in OUT_DIR
+            let descriptor = include_bytes!(concat!(env!("OUT_DIR"), "/proto/vector_descriptor.bin"));
+            let reflection_service = tonic_reflection::server::Builder::configure()
+                .register_encoded_file_descriptor_set(descriptor)
+                .build()
+                .unwrap();
+            
+            tonic::transport::Server::builder()
+                .add_service(reflection_service)
+                .add_service(svc)
+                .serve(grpc_addr)
+        } => {
+            grpc_result.expect("gRPC server failed");
+        }
+    }
 }
 

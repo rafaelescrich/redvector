@@ -154,7 +154,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-Copyright (c) 2015, Sebastian Waisbrot  
+Copyright (c) 2015, Rafael Escrich  
 Copyright (c) 2025, Rafael Escrich
 
 All rights reserved.

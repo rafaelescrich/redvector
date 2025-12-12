@@ -649,6 +649,7 @@ mod test_networking {
     use std::io::{Read, Write};
     use std::net::TcpStream;
     use std::str::from_utf8;
+    use std::sync::atomic::Ordering;
     use std::thread;
 
     use config::Config;
@@ -737,10 +738,10 @@ mod test_networking {
         let addr = format!("127.0.0.1:{}", port);
         let _ = TcpStream::connect(&*addr);
         thread::sleep(Duration::from_millis(100));
-        assert_eq!(*server.next_id.lock().unwrap(), 1);
+        assert_eq!(server.next_id.load(Ordering::Relaxed), 1);
         let _ = TcpStream::connect(&*addr);
         thread::sleep(Duration::from_millis(100));
-        assert_eq!(*server.next_id.lock().unwrap(), 2);
+        assert_eq!(server.next_id.load(Ordering::Relaxed), 2);
         server.stop();
     }
 }

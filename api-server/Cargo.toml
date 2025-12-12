@@ -14,3 +14,19 @@ tower-http = { version = "0.5", features = ["cors", "fs"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 
+# gRPC support
+tonic = "0.11"
+tonic-build = "0.11"
+prost = "0.12"
+tonic-reflection = "0.11"
+
+# SQL support
+sqlparser = "0.39"
+
+[[bin]]
+name = "grpc_test"
+path = "src/bin/grpc_test.rs"
+
+[build-dependencies]
+tonic-build = "0.11"
+

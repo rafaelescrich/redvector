@@ -1,17 +1,31 @@
 //! RediSearch (FT.*) command handlers
 //! 
-//! This module provides FT.* command implementations that integrate
-//! redisearch-platform-core with rsedis.
+//! This module provides FT.* command implementations using HNSW for vector search.
 
+#[cfg(feature = "vector-search")]
 use parser::ParsedCommand;
+#[cfg(feature = "vector-search")]
 use response::Response;
+#[cfg(feature = "vector-search")]
 use database::Database;
+#[cfg(all(feature = "vector-search", feature = "hnsw-backend"))]
+use database::vector_index::{HnswVectorIndex, VectorMetric, VectorIndexTrait};
+#[cfg(all(feature = "vector-search", not(feature = "hnsw-backend")))]
 use redisearch_platform_core::vector_index::{VectorIndex, VectorMetric};
+#[cfg(feature = "vector-search")]
 use std::sync::{Arc, Mutex};
+#[cfg(feature = "vector-search")]
 use std::collections::HashMap;
 
 // Global index storage (indexed by database index and index name)
 // Format: (dbindex, index_name) -> VectorIndex
+#[cfg(all(feature = "vector-search", feature = "hnsw-backend"))]
+lazy_static::lazy_static! {
+    static ref INDEX_STORAGE: Arc<Mutex<HashMap<(usize, String), Arc<Mutex<HnswVectorIndex>>>>> = 
+        Arc::new(Mutex::new(HashMap::new()));
+}
+
+#[cfg(all(feature = "vector-search", not(feature = "hnsw-backend")))]
 lazy_static::lazy_static! {
     static ref INDEX_STORAGE: Arc<Mutex<HashMap<(usize, String), Arc<Mutex<VectorIndex>>>>> = 
         Arc::new(Mutex::new(HashMap::new()));
@@ -60,12 +74,29 @@ fn index_meta_key(index_name: &str) -> Vec<u8> {
 }
 
 /// Get index from storage
+#[cfg(all(feature = "vector-search", feature = "hnsw-backend"))]
+fn get_index(dbindex: usize, index_name: &str) -> Option<Arc<Mutex<HnswVectorIndex>>> {
+    let storage = INDEX_STORAGE.lock().unwrap();
+    storage.get(&(dbindex, index_name.to_string())).cloned()
+}
+
+#[cfg(all(feature = "vector-search", not(feature = "hnsw-backend")))]
 fn get_index(dbindex: usize, index_name: &str) -> Option<Arc<Mutex<VectorIndex>>> {
     let storage = INDEX_STORAGE.lock().unwrap();
     storage.get(&(dbindex, index_name.to_string())).cloned()
 }
 
 /// Create and store index
+#[cfg(all(feature = "vector-search", feature = "hnsw-backend"))]
+fn create_index(dbindex: usize, index_name: String, dimension: usize, metric: VectorMetric) -> Arc<Mutex<HnswVectorIndex>> {
+    // Use recommended HNSW parameters: m=16, ef_construction=200 for 98%+ recall
+    let index = Arc::new(Mutex::new(HnswVectorIndex::new(dimension, metric, Some(16), Some(200))));
+    let mut storage = INDEX_STORAGE.lock().unwrap();
+    storage.insert((dbindex, index_name), index.clone());
+    index
+}
+
+#[cfg(all(feature = "vector-search", not(feature = "hnsw-backend")))]
 fn create_index(dbindex: usize, index_name: String, dimension: usize, metric: VectorMetric) -> Arc<Mutex<VectorIndex>> {
     let index = Arc::new(Mutex::new(VectorIndex::new(dimension, metric)));
     let mut storage = INDEX_STORAGE.lock().unwrap();
@@ -184,20 +215,41 @@ pub fn ft_search(parser: &mut ParsedCommand, db: &Database, dbindex: usize) -> R
             .collect();
         
         if let Ok(query_vector) = vector {
-            let index = index_arc.lock().unwrap();
-            if let Ok(results) = index.search(&query_vector, 10) {
-                let mut response = Vec::new();
-                response.push(Response::Integer(results.len() as i64));
-                
-                for (doc_id, score) in results {
-                    let mut doc = Vec::new();
-                    doc.push(Response::Data(format!("{}", doc_id).into_bytes()));
-                    doc.push(Response::Data(b"score".to_vec()));
-                    doc.push(Response::Data(format!("{}", score).into_bytes()));
-                    response.push(Response::Array(doc));
+            #[cfg(feature = "hnsw-backend")]
+            {
+                let index = index_arc.lock().unwrap();
+                if let Ok(results) = index.search(&query_vector, 10) {
+                    let mut response = Vec::new();
+                    response.push(Response::Integer(results.len() as i64));
+                    
+                    for (doc_id, score) in results {
+                        let mut doc = Vec::new();
+                        doc.push(Response::Data(format!("{}", doc_id).into_bytes()));
+                        doc.push(Response::Data(b"score".to_vec()));
+                        doc.push(Response::Data(format!("{:.6}", score).into_bytes()));
+                        response.push(Response::Array(doc));
+                    }
+                    
+                    return Response::Array(response);
                 }
-                
-                return Response::Array(response);
+            }
+            #[cfg(not(feature = "hnsw-backend"))]
+            {
+                let index = index_arc.lock().unwrap();
+                if let Ok(results) = index.search(&query_vector, 10) {
+                    let mut response = Vec::new();
+                    response.push(Response::Integer(results.len() as i64));
+                    
+                    for (doc_id, score) in results {
+                        let mut doc = Vec::new();
+                        doc.push(Response::Data(format!("{}", doc_id).into_bytes()));
+                        doc.push(Response::Data(b"score".to_vec()));
+                        doc.push(Response::Data(format!("{}", score).into_bytes()));
+                        response.push(Response::Array(doc));
+                    }
+                    
+                    return Response::Array(response);
+                }
             }
         }
     }
@@ -227,8 +279,16 @@ pub fn ft_info(parser: &mut ParsedCommand, db: &Database, dbindex: usize) -> Res
     
     // Get index stats if available
     let num_docs = if let Some(index_arc) = get_index(dbindex, index_name) {
-        let index = index_arc.lock().unwrap();
-        index.len()
+        #[cfg(feature = "hnsw-backend")]
+        {
+            let index = index_arc.lock().unwrap();
+            index.len()
+        }
+        #[cfg(not(feature = "hnsw-backend"))]
+        {
+            let index = index_arc.lock().unwrap();
+            index.len()
+        }
     } else {
         0
     };

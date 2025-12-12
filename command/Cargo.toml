@@ -1,18 +1,24 @@
 [package]
 name = "command"
 version = "0.1.0"
-authors = ["Sebastian Waisbrot <seppo0010@gmail.com>"]
+authors = ["Rafael Escrich <rafaelescrich@gmail.com>"]
 edition = "2018"
 
 [dependencies]
 bitflags = "1.2"
 compat = { path = "../compat" }
 config = { path = "../config" }
-database = { path = "../database" }
+database = { path = "../database", features = ["hnsw-backend"] }
 logger = { path = "../logger" }
 parser = { path = "../parser" }
 rand = "0.3"
 response = { path = "../response" }
 util = { path = "../util" }
 lazy_static = "1.4"
-redisearch-platform-core = { path = "../../redisearch-platform/platform-core" }
+redisearch-platform-core = { path = "../redisearch-platform-core", optional = true }
+hnsw_rs = { version = "0.1", optional = true }
+
+[features]
+default = []
+vector-search = ["redisearch-platform-core", "hnsw_rs", "database/hnsw-backend"]
+hnsw-backend = ["hnsw_rs", "database/hnsw-backend"]

@@ -387,7 +387,7 @@ mod tests {
     fn parse_port() {
         let config = config!(b"port 12345", Logger::new(Level::Warning));
         assert_eq!(config.port, 12345);
-        assert_eq!(config.addresses(), vec![("127.0.0.1".to_owned(), 12345)]);
+        assert_eq!(config.addresses(), vec![("0.0.0.0".to_owned(), 12345)]);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 [package]
-authors = ["Sebastian Waisbrot <seppo0010@gmail.com>"]
+authors = ["Rafael Escrich <rafaelescrich@gmail.com>"]
 name = "database"
 version = "0.1.0"
 
@@ -30,3 +30,11 @@ path = "../response"
 
 [dependencies.util]
 path = "../util"
+
+[dependencies.hnsw_rs]
+version = "0.1"
+optional = true
+
+[features]
+default = []
+hnsw-backend = ["dep:hnsw_rs"]

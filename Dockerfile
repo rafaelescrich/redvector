@@ -48,8 +48,8 @@ RUN cargo build --release 2>&1 | grep -v "^   Compiling" || true
 # Copy actual source code
 COPY . .
 
-# Build the actual application with optimizations
-RUN cargo build --release && \
+# Build the actual application with optimizations (without vector-search feature for Docker)
+RUN cargo build --release --no-default-features && \
     strip /build/target/release/rsedis
 
 # Stage 2: Minimal Debian runtime

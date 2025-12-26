@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for rsedis - Ultra-minimal distroless version
+# Multi-stage Dockerfile for redvector - Ultra-minimal distroless version
 # Using Debian for build, distroless for ultra-minimal runtime (no shell, no package manager)
 # Stage 1: Build dependencies
 FROM rust:1.80-slim AS builder
@@ -49,7 +49,7 @@ COPY . .
 
 # Build the actual application with optimizations
 RUN cargo build --release && \
-    strip /build/target/release/rsedis
+    strip /build/target/release/redvector
 
 # Stage 2: Distroless runtime (ultra-minimal, secure, ~20MB)
 FROM gcr.io/distroless/cc-debian12:nonroot
@@ -58,7 +58,7 @@ FROM gcr.io/distroless/cc-debian12:nonroot
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Copy the binary from builder
-COPY --from=builder /build/target/release/rsedis /usr/local/bin/rsedis
+COPY --from=builder /build/target/release/redvector /usr/local/bin/redvector
 
 # Set working directory
 WORKDIR /data
@@ -73,7 +73,7 @@ EXPOSE 6379
 USER nonroot:nonroot
 
 # Default command
-ENTRYPOINT ["/usr/local/bin/rsedis"]
+ENTRYPOINT ["/usr/local/bin/redvector"]
 
 # Default arguments (can be overridden)
 CMD []

@@ -3,8 +3,5 @@ name = "logger"
 version = "0.1.0"
 authors = ["Rafael Escrich <rafaelescrich@gmail.com>"]
 
-[target.x86_64-unknown-linux-gnu.dependencies]
-syslog = "2.2.0"
-
-[target.x86_64-apple-darwin.dependencies]
+[target.'cfg(unix)'.dependencies]
 syslog = "2.2.0"

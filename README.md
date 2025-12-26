@@ -1,181 +1,277 @@
-# rsedis
+# 🚀 RedVector
 
-[![Build Status](https://travis-ci.org/seppo0010/rsedis.svg?branch=master)](https://travis-ci.org/seppo0010/rsedis)
-[![Build status](https://ci.appveyor.com/api/projects/status/m9qeoc83m18q4656?svg=true)](https://ci.appveyor.com/project/seppo0011/rsedis)
+[![CI/CD](https://github.com/rafaelescrich/redvector/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaelescrich/redvector/actions)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**Redis-compatible in-memory data store implemented in Rust.**
+**The Redis-Compatible Vector Database Built in Rust**
 
-rsedis is a high-performance, Redis-compatible server that implements the majority of Redis commands and features. It achieves **80-90% of Redis throughput** in optimized scenarios while maintaining full protocol compatibility.
+RedVector combines the power of Redis with vector search capabilities. Use your existing Redis clients to build AI applications with semantic search, RAG pipelines, and recommendation systems.
 
-## Features
-
-### ✅ Core Functionality
-- **150+ Redis commands** implemented and tested
-- **Full protocol compatibility** - works with redis-cli, redis-py, and other Redis clients
-- **Multiple data structures**: Strings, Lists, Sets, Sorted Sets, Hashes, HyperLogLog
-- **Pub/Sub** messaging system
-- **Transactions** (MULTI/EXEC/DISCARD/WATCH)
-- **Persistence**: RDB snapshots and AOF (Append Only File)
-
-### ✅ Advanced Features
-- **SLOWLOG** - Track and debug slow commands
-- **Keyspace Notifications** - Event-driven architecture support
-- **Maxmemory Eviction** - LRU, TTL, and random eviction policies
-- **Memory Tracking** - Accurate memory usage reporting
-- **Configuration Management** - CONFIG GET/SET support
-- **Scan Commands** - SCAN, SSCAN, HSCAN, ZSCAN
-
-### ✅ Production Ready
-- **Docker Support** - Multi-stage builds, multiple variants (Debian, distroless)
-- **Performance** - 30k-60k requests/sec throughput
-- **Low Latency** - Sub-millisecond average latency
-- **Cross-platform** - Works on Linux, Windows, macOS
-
-## Performance
-
-See [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md) for detailed performance analysis.
-
-**Highlights:**
-- **Throughput**: 30,000-60,000 requests/sec (80-90% of Redis baseline)
-- **Latency**: 0.1-1.6ms average (1.2-3.8x Redis latency)
-- **Memory**: Efficient memory usage (~34 bytes per key overhead)
-- **Stability**: Handles 100k+ operations reliably
-
-## Quick Start
-
-### Using Docker (Recommended)
-
-```bash
-# Build and run
-docker build -t rsedis:latest .
-docker run -d -p 6379:6379 rsedis:latest
-
-# Or use docker-compose
-docker-compose up -d
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   RedVector = Redis Protocol + Vector Search + REST/gRPC APIs               │
+│                                                                              │
+│   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐    │
+│   │   Strings   │   │   Vectors   │   │   REST API  │   │  gRPC API   │    │
+│   │   Lists     │   │   HNSW      │   │   Port 8888 │   │  Port 50051 │    │
+│   │   Sets      │   │   Cosine    │   │   JSON      │   │  Protobuf   │    │
+│   │   Hashes    │   │   Euclidean │   │   Qdrant-   │   │  Qdrant-    │    │
+│   └─────────────┘   └─────────────┘   └──compatible─┘   └──compatible─┘    │
+│                                                                              │
+│   ONE SERVER • 50+ CLIENT LANGUAGES • THREE PROTOCOLS                       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-See [DOCKER.md](DOCKER.md) for more Docker options and variants.
+---
+
+## ✨ Why RedVector?
+
+### 🔌 Three APIs, One Server
+```bash
+# Redis Protocol (port 6379) - Works with any Redis client
+redis-cli SET hello world
+
+# REST API (port 8888) - Qdrant-compatible
+curl -X POST http://localhost:8888/api/collections/my_vectors \
+  -d '{"vector_size": 384, "distance": "Cosine"}'
+
+# gRPC API (port 50051) - High-performance
+grpcurl -plaintext localhost:50051 redvector.VectorService/Search
+```
+
+### 🦀 Pure Rust = No GC Pauses
+Unlike Go-based vector databases (Milvus, Weaviate), RedVector has **zero garbage collection**:
+- ✅ Predictable P99 latency
+- ✅ No stop-the-world pauses
+- ✅ Consistent performance under load
+
+### 📦 One Server, Not Three
+Other setups require: `Vector DB + Redis Cache + Message Queue`
+
+RedVector gives you: **Everything in one place**
+
+```redis
+# Atomic operation: Update product + embedding + invalidate cache + notify
+MULTI
+HSET product:123 name "New Name" price 99.99
+FT.ADD products product:123 1.0 FIELDS vector "0.1,0.2,..."
+DEL cache:product:123
+PUBLISH product_updates "123"
+EXEC
+```
+
+---
+
+## 🚀 Quick Start
+
+### Using Docker
+
+```bash
+docker build -t redvector:latest .
+docker run -d -p 6379:6379 -p 8888:8888 -p 50051:50051 redvector:latest
+```
 
 ### Building from Source
 
-**Prerequisites:**
-- Rust (stable or nightly)
-- Cargo
-
 ```bash
-# Clone the repository
-git clone https://github.com/rafaelescrich/rsedis.git
-cd rsedis
+# Clone
+git clone https://github.com/rafaelescrich/redvector.git
+cd redvector
 
-# Build
-cargo build --release
+# Build with all features (Redis + Vector Search + REST + gRPC)
+cargo build --release --features full
 
 # Run
-./target/release/rsedis
-
-# Or with custom config
-./target/release/rsedis /path/to/rsedis.conf
+./target/release/redvector
 ```
 
-## Configuration
+Output:
+```
+🚀 RedVector v0.1.0 - Redis-Compatible Vector Database
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 Redis Protocol: localhost:6379
+📊 REST API:       http://localhost:8888
+🔌 gRPC API:       http://localhost:50051
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
 
-rsedis supports Redis-compatible configuration files. See `rsedis.conf` for examples.
+### Connect with Any Redis Client
 
-**Key configuration options:**
-- `port` - Server port (default: 6379)
-- `bind` - Bind address (default: 0.0.0.0)
-- `maxmemory` - Maximum memory usage
-- `maxmemory-policy` - Eviction policy (volatile-lru, allkeys-lru, etc.)
-- `slowlog-log-slower-than` - Slow log threshold (microseconds)
-- `notify-keyspace-events` - Keyspace notification flags
-- `appendonly` - Enable AOF persistence
+```python
+import redis
+r = redis.Redis()
 
-See [INTEGRATION.md](INTEGRATION.md) for integration guides and examples.
+# Standard Redis commands work
+r.set("hello", "world")
+print(r.get("hello"))  # b'world'
 
-## Documentation
+# Vector search with FT.* commands
+r.execute_command("FT.CREATE", "myindex", "SCHEMA", "embedding", "VECTOR(384)")
+r.execute_command("FT.ADD", "myindex", "doc1", "1.0", "FIELDS", "vector", "0.1,0.2,...")
+results = r.execute_command("FT.SEARCH", "myindex", "0.1,0.2,...")
+```
 
-- [TODO.md](TODO.md) - Implementation status and roadmap
-- [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md) - Performance benchmarks
-- [DOCKER.md](DOCKER.md) - Docker usage and variants
-- [INTEGRATION.md](INTEGRATION.md) - Integration guide
-- [MISSING_FEATURES.md](MISSING_FEATURES.md) - Missing features documentation
-- [CRITICAL_MISSING.md](CRITICAL_MISSING.md) - Critical missing features
+---
 
-## Use Cases
+## 📊 Features
 
-### Why rsedis?
+### ✅ Redis Compatibility (150+ Commands)
+| Category | Commands |
+|----------|----------|
+| **Strings** | GET, SET, MGET, MSET, INCR, APPEND, ... |
+| **Lists** | LPUSH, RPUSH, LPOP, RPOP, LRANGE, ... |
+| **Sets** | SADD, SREM, SMEMBERS, SINTER, SUNION, ... |
+| **Hashes** | HSET, HGET, HMSET, HGETALL, ... |
+| **Sorted Sets** | ZADD, ZRANGE, ZRANK, ZSCORE, ... |
+| **Pub/Sub** | SUBSCRIBE, PUBLISH, PSUBSCRIBE, ... |
+| **Transactions** | MULTI, EXEC, DISCARD, WATCH |
+| **Persistence** | SAVE, BGSAVE, AOF |
 
-1. **Cross-platform** - Works on Windows, Linux, and macOS without UNIX-specific dependencies
-2. **Multi-threaded** - Better utilization of multi-core machines
-3. **Rust Safety** - Memory safety guarantees without garbage collection overhead
-4. **Redis-Compatible** - Drop-in replacement for many Redis use cases
-5. **Learning** - Great way to learn Rust and understand Redis internals
+### ✅ Vector Search (RediSearch Compatible)
+| Command | Description |
+|---------|-------------|
+| `FT.CREATE` | Create a vector index |
+| `FT.ADD` | Add document with vector |
+| `FT.SEARCH` | Similarity search (KNN) |
+| `FT.INFO` | Index information |
+| `FT.DROP` | Delete index |
 
-### When to Use
+### ✅ REST API (Qdrant-Compatible)
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/collections/:name` | Create collection |
+| `GET /api/collections` | List collections |
+| `POST /api/collections/:name/points` | Upsert vectors |
+| `GET /api/collections/:name/search` | Search vectors |
+| `DELETE /api/collections/:name` | Delete collection |
 
-- ✅ Development and testing environments
-- ✅ Windows environments where Redis is not available
-- ✅ Applications requiring Redis-compatible API
-- ✅ Multi-threaded workloads
-- ✅ Learning Rust and distributed systems
+### ✅ gRPC API
+| Service | Methods |
+|---------|---------|
+| `VectorService` | CreateCollection, Upsert, Search, GetCollectionInfo, DeleteCollection |
 
-### When Not to Use
+---
 
-- ❌ Production environments requiring full Redis feature set (replication, clustering)
-- ❌ Applications requiring Lua scripting
-- ❌ Redis Cluster deployments
+## 🏗️ Architecture
 
-## Current Status
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         RedVector Architecture                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌──────────────┐   ┌──────────────┐   ┌──────────────┐                   │
+│   │ Redis Proto  │   │   REST API   │   │   gRPC API   │                   │
+│   │  Port 6379   │   │  Port 8888   │   │  Port 50051  │                   │
+│   └──────┬───────┘   └──────┬───────┘   └──────┬───────┘                   │
+│          │                  │                  │                            │
+│          └──────────────────┼──────────────────┘                            │
+│                             ▼                                               │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                    HNSW Vector Index Engine                          │   │
+│   │         • Cosine Similarity  • Euclidean  • Inner Product           │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                             │                                               │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │              Redis-Compatible Key-Value Store                        │   │
+│   │    Strings • Lists • Sets • Hashes • Sorted Sets • Pub/Sub          │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                             │                                               │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                       Persistence Layer                              │   │
+│   │              • RDB Snapshots  • AOF Append-Only File                 │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-**Completion: ~96%** of core Redis functionality for single-instance use cases.
+---
 
-**Implemented:**
-- ✅ Core commands (150+)
-- ✅ Data structures (Strings, Lists, Sets, Sorted Sets, Hashes, HyperLogLog)
-- ✅ Pub/Sub
-- ✅ Transactions
-- ✅ Persistence (RDB, AOF)
-- ✅ SLOWLOG
-- ✅ Keyspace Notifications
-- ✅ Maxmemory Eviction
-- ✅ Configuration Management
+## 🆚 Comparison with Other Vector Databases
 
-**Missing:**
-- ⚠️ Replication (SYNC, PSYNC)
-- ⚠️ Lua Scripting
-- ⚠️ Redis Cluster
-- ⚠️ LATENCY command
+| Feature | RedVector | Qdrant | Milvus | Pinecone | pgvector |
+|---------|-----------|--------|--------|----------|----------|
+| **Language** | 🦀 Rust | 🦀 Rust | Go | ? | C |
+| **Redis Protocol** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **REST API** | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **gRPC API** | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **No GC Pauses** | ✅ | ✅ | ❌ | ? | ✅ |
+| **Built-in Cache** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Pub/Sub** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Transactions** | ✅ | ❌ | ❌ | ❌ | ✅ |
+| **Self-Hosted** | ✅ | ✅ | ✅ | ❌ | ✅ |
+| **Open Source** | ✅ | ✅ | ✅ | ❌ | ✅ |
 
-See [TODO.md](TODO.md) for complete status.
+---
 
-## Contributing
+## 🗺️ Roadmap
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+### v0.1.0 - Current ✅
+- Redis protocol compatibility (150+ commands)
+- HNSW vector index (CPU)
+- RediSearch FT.* commands
+- Integrated REST API
+- Integrated gRPC API
+- Persistence (RDB, AOF)
 
-## License
+### v0.2.0 - GPU Acceleration
+- wgpu backend (Vulkan/Metal/DX12)
+- CUDA backend for NVIDIA
+- Apple Silicon native support
 
-Copyright (c) 2015, Rafael Escrich  
-Copyright (c) 2025, Rafael Escrich
+### v1.0.0 - Production Ready
+- IVF-SQ8 (4x compression)
+- IVF-PQ (32x compression)
+- Memory-mapped vector storage
+- Production hardening
 
-All rights reserved.
+### v2.0.0 - Enterprise (Closed Source)
+- Distributed clustering
+- Multi-node replication
+- Cloud management console
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
+---
 
-* Redistributions of source code must retain the above copyright notice, this
-  list of conditions and the following disclaimer.
+## 📚 Documentation
 
-* Redistributions in binary form must reproduce the above copyright notice,
-  this list of conditions and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
+| Document | Description |
+|----------|-------------|
+| [GPU Acceleration Plan](docs/adr/ADR-001-GPU-ACCELERATION.md) | GPU implementation roadmap |
+| [Architecture Advantages](docs/adr/ADR-002-ARCHITECTURE-ADVANTAGES.md) | Why RedVector's design is unique |
+| [Docker Guide](DOCKER.md) | Container deployment |
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! See our [Architecture Decision Records](docs/adr/) for design context.
+
+```bash
+# Run tests
+cargo test --all-features
+
+# Build with all features
+cargo build --release --features full
+
+# Run
+./target/release/redvector
+```
+
+---
+
+## 📄 License
+
+Copyright (c) 2024-2025, Rafael Escrich
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+
+---
+
+<div align="center">
+
+**Built with 🦀 Rust • Compatible with 🔴 Redis • APIs like 🟣 Qdrant**
+
+[Documentation](docs/) • [Issues](https://github.com/rafaelescrich/redvector/issues) • [Discussions](https://github.com/rafaelescrich/redvector/discussions)
+
+</div>

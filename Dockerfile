@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for rsedis - Ultra-performant Redis-compatible server
+# Multi-stage Dockerfile for redvector - Ultra-performant Redis-compatible server
 # Using Debian slim for build, Debian slim for runtime (better compatibility)
 # Stage 1: Build dependencies
 FROM rust:1.80-slim AS builder
@@ -50,7 +50,7 @@ COPY . .
 
 # Build the actual application with optimizations (without vector-search feature for Docker)
 RUN cargo build --release --no-default-features && \
-    strip /build/target/release/rsedis
+    strip /build/target/release/redvector
 
 # Stage 2: Minimal Debian runtime
 FROM debian:bookworm-slim
@@ -61,14 +61,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
     netcat-openbsd \
     && rm -rf /var/lib/apt/lists/* && \
-    groupadd -r -g 1000 rsedis && \
-    useradd -r -u 1000 -g rsedis rsedis
+    groupadd -r -g 1000 redvector && \
+    useradd -r -u 1000 -g redvector redvector
 
 # Copy the binary from builder
-COPY --from=builder /build/target/release/rsedis /usr/local/bin/rsedis
+COPY --from=builder /build/target/release/redvector /usr/local/bin/redvector
 
 # Create data directory
-RUN mkdir -p /data && chown -R rsedis:rsedis /data
+RUN mkdir -p /data && chown -R redvector:redvector /data
 
 # Set working directory
 WORKDIR /data
@@ -81,10 +81,10 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD sh -c 'echo -e "*1\r\n$$4\r\nPING\r\n" | timeout 1 nc localhost 6379 | grep -q PONG || exit 1'
 
 # Run as non-root user
-USER rsedis
+USER redvector
 
 # Default command
-ENTRYPOINT ["/usr/local/bin/rsedis"]
+ENTRYPOINT ["/usr/local/bin/redvector"]
 
 # Default arguments (can be overridden)
 CMD []

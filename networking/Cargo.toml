@@ -28,10 +28,6 @@ path = "../command"
 [dependencies]
 net2 = { version = "0.2.2", features = ["nightly"] }
 
-[target.x86_64-unknown-linux-gnu.dependencies]
+[target.'cfg(unix)'.dependencies]
 fork = "0.1"
-unix_socket = "0.4.3"
-
-[target.x86_64-apple-darwin.dependencies]
-fork = "0.1"
-unix_socket = "0.4.3"
+unix_socket = "0.5"

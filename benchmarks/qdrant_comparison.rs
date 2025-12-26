@@ -1,4 +1,4 @@
-//! Benchmark comparison between rsedis+Redisearch and Qdrant
+//! Benchmark comparison between redvector+Redisearch and Qdrant
 //! 
 //! This benchmark compares vector search performance using real-world
 //! embedding scenarios similar to Qdrant's blog examples.
@@ -146,23 +146,23 @@ pub fn calculate_recall_at_k(
     intersection as f64 / ground_truth.len() as f64
 }
 
-/// Benchmark rsedis+Redisearch
-pub fn benchmark_rsedis(
+/// Benchmark redvector+Redisearch
+pub fn benchmark_redvector(
     dataset: &[Vec<f32>],
     queries: &[Vec<f32>],
     index_name: &str,
 ) -> BenchmarkResults {
     let mut results = BenchmarkResults::new(
-        "rsedis+Redisearch".to_string(),
+        "redvector+Redisearch".to_string(),
         dataset.len(),
         if dataset.is_empty() { 0 } else { dataset[0].len() },
     );
     
-    // Connect to rsedis
+    // Connect to redvector
     let client = match redis::Client::open("redis://127.0.0.1:6379/") {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("Failed to connect to rsedis: {}", e);
+            eprintln!("Failed to connect to redvector: {}", e);
             return results;
         }
     };
@@ -457,9 +457,9 @@ pub fn run_comparison_benchmark() {
         let dataset = generate_random_vectors(size, dim);
         let queries = generate_query_vectors(&dataset, 100);
         
-        println!("Benchmarking rsedis+Redisearch...");
-        let rsedis_results = benchmark_rsedis(&dataset, &queries, "test_idx");
-        rsedis_results.print_summary();
+        println!("Benchmarking redvector+Redisearch...");
+        let redvector_results = benchmark_redvector(&dataset, &queries, "test_idx");
+        redvector_results.print_summary();
         
         println!("\nBenchmarking Qdrant...");
         let qdrant_results = benchmark_qdrant(&dataset, &queries, "test_collection");
@@ -467,18 +467,18 @@ pub fn run_comparison_benchmark() {
         
         // Comparison
         println!("\n=== Comparison ===");
-        println!("Insertion Throughput: rsedis {:.2} vs Qdrant {:.2} ({:.1}x)",
-                 rsedis_results.insertion_throughput,
+        println!("Insertion Throughput: redvector {:.2} vs Qdrant {:.2} ({:.1}x)",
+                 redvector_results.insertion_throughput,
                  qdrant_results.insertion_throughput,
-                 qdrant_results.insertion_throughput / rsedis_results.insertion_throughput);
-        println!("Search QPS: rsedis {:.2} vs Qdrant {:.2} ({:.1}x)",
-                 rsedis_results.search_qps,
+                 qdrant_results.insertion_throughput / redvector_results.insertion_throughput);
+        println!("Search QPS: redvector {:.2} vs Qdrant {:.2} ({:.1}x)",
+                 redvector_results.search_qps,
                  qdrant_results.search_qps,
-                 qdrant_results.search_qps / rsedis_results.search_qps);
-        println!("P95 Latency: rsedis {:.2}ms vs Qdrant {:.2}ms ({:.1}x)",
-                 rsedis_results.search_latency_p95.as_secs_f64() * 1000.0,
+                 qdrant_results.search_qps / redvector_results.search_qps);
+        println!("P95 Latency: redvector {:.2}ms vs Qdrant {:.2}ms ({:.1}x)",
+                 redvector_results.search_latency_p95.as_secs_f64() * 1000.0,
                  qdrant_results.search_latency_p95.as_secs_f64() * 1000.0,
-                 rsedis_results.search_latency_p95.as_secs_f64() / qdrant_results.search_latency_p95.as_secs_f64());
+                 redvector_results.search_latency_p95.as_secs_f64() / qdrant_results.search_latency_p95.as_secs_f64());
     }
 }
 

@@ -1,17 +1,17 @@
 version: '3.8'
 
 services:
-  rsedis:
+  redvector:
     build:
       context: .
       dockerfile: Dockerfile
-    image: rsedis:latest
-    container_name: rsedis
+    image: redvector:latest
+    container_name: redvector
     ports:
       - "6379:6379"
     volumes:
-      - rsedis-data:/data
-      - ./rsedis.conf:/etc/rsedis/rsedis.conf:ro
+      - redvector-data:/data
+      - ./redvector.conf:/etc/redvector/redvector.conf:ro
     environment:
       - RUST_LOG=info
     restart: unless-stopped
@@ -29,15 +29,15 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
-    command: ["/etc/rsedis/rsedis.conf"]
+    command: ["/etc/redvector/redvector.conf"]
     networks:
-      - rsedis-network
+      - redvector-network
 
 volumes:
-  rsedis-data:
+  redvector-data:
     driver: local
 
 networks:
-  rsedis-network:
+  redvector-network:
     driver: bridge
 

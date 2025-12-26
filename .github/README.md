@@ -77,7 +77,7 @@ See `.github/workflows/README.md` for detailed instructions on:
 
 3. **Test Docker build:**
    ```bash
-   docker build -t rsedis:test .
+   docker build -t redvector:test .
    ```
 
 ### 4. Creating a Release
@@ -107,9 +107,9 @@ git push origin v1.0.0
 ## Docker Images
 
 After a successful build, images are available at:
-- `gcr.io/YOUR_PROJECT_ID/rsedis:latest`
-- `gcr.io/YOUR_PROJECT_ID/rsedis:v1.0.0` (on releases)
-- `gcr.io/YOUR_PROJECT_ID/rsedis:distroless-v1.0.0` (distroless variant)
+- `gcr.io/YOUR_PROJECT_ID/redvector:latest`
+- `gcr.io/YOUR_PROJECT_ID/redvector:v1.0.0` (on releases)
+- `gcr.io/YOUR_PROJECT_ID/redvector:distroless-v1.0.0` (distroless variant)
 
 ## Troubleshooting
 

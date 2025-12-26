@@ -1,49 +1,64 @@
 [package]
-name = "rsedis"
-version = "0.0.1"
+name = "redvector"
+version = "0.1.0"
 authors = [ "Rafael Escrich <rafaelescrich@gmail.com>" ]
+description = "Redis-Compatible Vector Database with GPU Acceleration"
+license = "Apache-2.0"
+repository = "https://github.com/rafaelescrich/redvector"
+keywords = ["redis", "vector", "database", "hnsw", "search"]
+categories = ["database", "development-tools"]
 exclude = [
     ".gitignore",
     ".travis.yml",
     "appveyor.yml",
 ]
 build = "build.rs"
-edition = "2018"
+edition = "2021"
 
 [[bin]]
-
-name = "rsedis"
+name = "redvector"
 doc = false
 
-[dependencies.config]
-path = "config"
+[dependencies]
+# Workspace crates
+config = { path = "config" }
+util = { path = "util" }
+parser = { path = "parser" }
+response = { path = "response" }
+database = { path = "database", features = [] }
+command = { path = "command" }
+networking = { path = "networking" }
+logger = { path = "logger" }
+compat = { path = "compat" }
 
-[dependencies.util]
-path = "util"
+# REST API dependencies (optional)
+axum = { version = "0.7", optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+tower = { version = "0.4", optional = true }
+tower-http = { version = "0.5", features = ["cors", "fs"], optional = true }
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true }
 
-[dependencies.parser]
-path = "parser"
+# gRPC dependencies (optional)
+tonic = { version = "0.11", optional = true }
+prost = { version = "0.12", optional = true }
 
-[dependencies.response]
-path = "response"
+# SQL support (optional)
+sqlparser = { version = "0.39", optional = true }
 
-[dependencies.database]
-path = "database"
-features = []
-
-[dependencies.command]
-path = "command"
-
-[dependencies.networking]
-path = "networking"
-
-[dependencies.logger]
-path = "logger"
-
-[dependencies.compat]
-path = "compat"
+[build-dependencies]
+tonic-build = { version = "0.11", optional = true }
 
 [features]
 default = []
 vector-search = ["command/vector-search"]
 hnsw-backend = ["database/hnsw-backend", "command/hnsw-backend"]
+# Integrated API server (REST + gRPC in same binary)
+api-server = [
+    "dep:axum", "dep:tokio", "dep:tower", "dep:tower-http", 
+    "dep:serde", "dep:serde_json", 
+    "dep:tonic", "dep:prost", "dep:tonic-build",
+    "dep:sqlparser"
+]
+# Full feature set: vector search + HNSW + API server
+full = ["vector-search", "hnsw-backend", "api-server"]

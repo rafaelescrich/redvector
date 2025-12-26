@@ -7,7 +7,7 @@ use anyhow::Result;
 use std::sync::{Arc, Mutex};
 use hnsw_rs::hnsw::Hnsw;
 use hnsw_rs::dist::DistCosine;
-use hnsw_rs::hnsw::Neighbour;
+#[allow(unused_imports)]
 use crate::simd_metrics;
 
 /// Vector similarity metric
@@ -176,7 +176,7 @@ impl HNSWIndex {
             anyhow::bail!("Vector dimension mismatch: expected {}, got {}", self.dimension, vector.len());
         }
         
-        let mut hnsw = self.hnsw.lock().unwrap();
+        let hnsw = self.hnsw.lock().unwrap();
         let mut next_id = self.next_id.lock().unwrap();
         let mut id_to_doc_id = self.id_to_doc_id.lock().unwrap();
         let mut doc_id_to_id = self.doc_id_to_id.lock().unwrap();
@@ -214,7 +214,7 @@ impl HNSWIndex {
             }
         }
         
-        let mut hnsw = self.hnsw.lock().unwrap();
+        let hnsw = self.hnsw.lock().unwrap();
         let mut next_id = self.next_id.lock().unwrap();
         let mut id_to_doc_id = self.id_to_doc_id.lock().unwrap();
         let mut doc_id_to_id = self.doc_id_to_id.lock().unwrap();
@@ -413,6 +413,7 @@ impl VectorIndex {
 }
 
 // Scalar distance implementations (fallback when SIMD not available)
+#[allow(dead_code)]
 pub(crate) fn cosine_similarity_scalar(a: &[f32], b: &[f32]) -> f32 {
     let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
     let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
@@ -424,6 +425,7 @@ pub(crate) fn cosine_similarity_scalar(a: &[f32], b: &[f32]) -> f32 {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn euclidean_distance_scalar(a: &[f32], b: &[f32]) -> f32 {
     a.iter()
         .zip(b.iter())
@@ -432,6 +434,7 @@ pub(crate) fn euclidean_distance_scalar(a: &[f32], b: &[f32]) -> f32 {
         .sqrt()
 }
 
+#[allow(dead_code)]
 pub(crate) fn inner_product_scalar(a: &[f32], b: &[f32]) -> f32 {
     a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
 }

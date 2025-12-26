@@ -2236,7 +2236,7 @@ impl Database {
 
             let policy = &*self.config.maxmemory_policy.to_ascii_lowercase();
             let samples = self.config.maxmemory_samples;
-            let now = mstime();
+            let _now = mstime();
 
             loop {
                 if self.used_memory + needed_memory <= maxmemory {
@@ -2327,7 +2327,7 @@ impl Database {
                 };
 
                 // Evict the key
-                if let Some(value) = self.remove(index, &key_to_evict) {
+                if self.remove(index, &key_to_evict).is_some() {
                     // Memory is already updated in remove(), just update evicted count
                     self.evicted_keys += 1;
                     // Publish evicted event notification
@@ -2514,7 +2514,7 @@ impl Database {
         }
 
         let entry = match self.data[index].entry(key.to_vec()) {
-            Entry::Occupied(mut entry) => {
+            Entry::Occupied(entry) => {
                 // Update LRU before returning the mutable reference
                 let now = mstime();
                 if self.config.maxmemory_policy.contains("lru") {
@@ -2887,7 +2887,7 @@ impl Database {
     }
 
     /// Iterate over the keys in one database
-    pub fn iter_db(&self, dbindex: usize) -> Iter {
+    pub fn iter_db(&self, dbindex: usize) -> Iter<'_> {
         Iter {
             inner: self.data[dbindex].iter(),
         }

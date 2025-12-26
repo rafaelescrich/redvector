@@ -12,7 +12,6 @@ use dbutil::normalize_position;
 use error::OperationError;
 use rdbutil::constants::*;
 use rdbutil::{encode_len, encode_slice_u8};
-use util::glob_match;
 
 pub enum Aggregate {
     Sum,
@@ -23,7 +22,7 @@ pub enum Aggregate {
 /**
  * SortedSetMember is a wrapper around f64 to implement ordering and equality.
  * f64 does not implement those traits because comparing floats has problems
- * but in the context of rsedis this basic implementation should be enough.
+ * but in the context of redvector this basic implementation should be enough.
  **/
 #[derive(Debug, Clone)]
 pub struct SortedSetMember {

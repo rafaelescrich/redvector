@@ -1,6 +1,6 @@
 # Redisearch vs Qdrant Benchmark Suite
 
-This benchmark suite compares the performance of rsedis+Redisearch with Qdrant for vector search operations, using real-world scenarios similar to those featured in Qdrant's blog.
+This benchmark suite compares the performance of redvector+Redisearch with Qdrant for vector search operations, using real-world scenarios similar to those featured in Qdrant's blog.
 
 ## Features
 
@@ -37,13 +37,13 @@ Based on Qdrant's blog examples:
 
 ### Prerequisites
 
-1. **rsedis** running on `localhost:6379`
+1. **redvector** running on `localhost:6379`
 2. **Qdrant** running (see setup below)
 
 ### Running Benchmarks
 
 ```bash
-# From rsedis root directory
+# From redvector root directory
 cd benchmarks
 cargo run --release
 ```
@@ -67,9 +67,9 @@ qdrant
 
 Small Dataset: 10000 vectors, 384 dimensions
 Generating dataset...
-Benchmarking rsedis+Redisearch...
+Benchmarking redvector+Redisearch...
 
-=== rsedis+Redisearch ===
+=== redvector+Redisearch ===
 Dataset: 10000 vectors, 384 dimensions
 Insertion: 2500.00 vectors/sec (4.00s total)
 Search QPS: 800.00
@@ -88,9 +88,9 @@ Recall@10: 98.00%
 Memory: 14.65 MB
 
 === Comparison ===
-Insertion Throughput: rsedis 2500.00 vs Qdrant 5000.00 (2.0x)
-Search QPS: rsedis 800.00 vs Qdrant 1200.00 (1.5x)
-P95 Latency: rsedis 2.50ms vs Qdrant 1.67ms (1.5x)
+Insertion Throughput: redvector 2500.00 vs Qdrant 5000.00 (2.0x)
+Search QPS: redvector 800.00 vs Qdrant 1200.00 (1.5x)
+P95 Latency: redvector 2.50ms vs Qdrant 1.67ms (1.5x)
 ```
 
 ## Real-World Use Cases
@@ -117,7 +117,7 @@ P95 Latency: rsedis 2.50ms vs Qdrant 1.67ms (1.5x)
 
 ## Implementation Notes
 
-### rsedis+Redisearch
+### redvector+Redisearch
 - Uses FT.CREATE to create vector indexes
 - Uses FT.ADD to insert vectors
 - Uses FT.SEARCH for similarity search
@@ -133,7 +133,7 @@ P95 Latency: rsedis 2.50ms vs Qdrant 1.67ms (1.5x)
 
 Based on typical benchmarks:
 
-| Metric | rsedis+Redisearch | Qdrant | Notes |
+| Metric | redvector+Redisearch | Qdrant | Notes |
 |--------|-------------------|--------|-------|
 | Insertion (1M, 384D) | 2-5 min | 2-5 min | Similar |
 | Search QPS (1M, 384D) | 300-800 | 1000-1500 | Qdrant faster |

@@ -420,7 +420,7 @@ impl Server {
         }
     }
 
-    pub fn get_mut_db(&self) -> MutexGuard<database::Database> {
+    pub fn get_mut_db(&self) -> MutexGuard<'_, database::Database> {
         self.db.lock().unwrap()
     }
 

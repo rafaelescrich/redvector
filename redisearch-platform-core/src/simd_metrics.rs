@@ -3,6 +3,7 @@
 //! Provides SIMD-optimized implementations of distance calculations
 //! with automatic CPU feature detection and fallback to scalar.
 
+#[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
 /// SIMD-accelerated cosine similarity

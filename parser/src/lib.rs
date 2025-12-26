@@ -107,14 +107,14 @@ impl OwnedParsedCommand {
         }
     }
 
-    pub fn get_command(&self) -> ParsedCommand {
+    pub fn get_command(&self) -> ParsedCommand<'_> {
         ParsedCommand::new(&*self.data, self.argv.clone())
     }
 }
 
 impl<'a> ParsedCommand<'a> {
     /// Creates a new parser with the data and arguments provided
-    pub fn new(data: &[u8], argv: Vec<Argument>) -> ParsedCommand {
+    pub fn new(data: &'a [u8], argv: Vec<Argument>) -> ParsedCommand<'a> {
         ParsedCommand { data, argv }
     }
 
@@ -330,7 +330,7 @@ fn parse_int(input: &[u8], len: usize, name: &str) -> Result<(Option<usize>, usi
 /// assert_eq!(parser.get_str(1).unwrap(), "mykey");
 /// assert_eq!(parser.get_i64(2).unwrap(), 10);
 /// ```
-pub fn parse(input: &[u8]) -> Result<(ParsedCommand, usize), ParseError> {
+pub fn parse(input: &[u8]) -> Result<(ParsedCommand<'_>, usize), ParseError> {
     let mut pos = 0;
     while input.len() > pos && input[pos] as char == '\r' {
         if pos + 1 < input.len() {
@@ -454,7 +454,7 @@ impl Parser {
     }
 
     #[allow(clippy::should_implement_trait)]
-    pub fn next(&mut self) -> Result<ParsedCommand, ParseError> {
+    pub fn next(&mut self) -> Result<ParsedCommand<'_>, ParseError> {
         let data = &(&*self.data)[self.position..self.written];
         let (r, len) = parse(data)?;
         self.position += len;

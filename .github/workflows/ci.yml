@@ -10,7 +10,7 @@ on:
 
 env:
   REGISTRY: gcr.io
-  IMAGE_NAME: ${{ secrets.GCR_PROJECT_ID }}/rsedis
+  IMAGE_NAME: ${{ secrets.GCR_PROJECT_ID }}/redvector
 
 jobs:
   fmt:
@@ -84,8 +84,8 @@ jobs:
       - name: Upload release artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: rsedis-binary
-          path: target/release/rsedis
+          name: redvector-binary
+          path: target/release/redvector
           retention-days: 30
 
   docker-build:
@@ -161,7 +161,7 @@ jobs:
       - name: Download release artifacts
         uses: actions/download-artifact@v3
         with:
-          name: rsedis-binary
+          name: redvector-binary
           path: ./artifacts
       
       - name: Get version from tag
@@ -179,7 +179,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/rsedis
+          files: artifacts/redvector
           name: Release v${{ steps.tag.outputs.VERSION }}
           body: |
             ## Release v${{ steps.tag.outputs.VERSION }}

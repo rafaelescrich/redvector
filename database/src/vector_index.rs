@@ -61,7 +61,7 @@ impl HnswVectorIndex {
     /// - Higher `m` = better recall, more memory, slower inserts
     /// - Higher `ef_construction` = better recall, slower builds
     /// - Recommended: m=16, ef_construction=200 for 98%+ recall
-    pub fn new(dimension: usize, metric: VectorMetric, m: Option<usize>, ef_construction: Option<usize>) -> Self {
+    pub fn new(dimension: usize, _metric: VectorMetric, m: Option<usize>, ef_construction: Option<usize>) -> Self {
         let m = m.unwrap_or(16);
         let ef_construction = ef_construction.unwrap_or(200);
         
@@ -118,7 +118,7 @@ impl HnswVectorIndex {
         
         // Add to HNSW index
         // Note: insert takes a tuple (&Vec<T>, usize)
-        let mut index = self.index.lock().unwrap();
+        let index = self.index.lock().unwrap();
         index.insert((&vector, internal_id));
         drop(index);
         

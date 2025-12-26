@@ -9,7 +9,7 @@ use response::Response;
 #[cfg(feature = "vector-search")]
 use database::Database;
 #[cfg(all(feature = "vector-search", feature = "hnsw-backend"))]
-use database::vector_index::{HnswVectorIndex, VectorMetric, VectorIndexTrait};
+use database::vector_index::{HnswVectorIndex, VectorMetric};
 #[cfg(all(feature = "vector-search", not(feature = "hnsw-backend")))]
 use redisearch_platform_core::vector_index::{VectorIndex, VectorMetric};
 #[cfg(feature = "vector-search")]
@@ -141,7 +141,7 @@ pub fn ft_create(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) 
                 // Parse schema fields
                 let mut j = i + 1;
                 while j + 1 < parser.argv.len() {
-                    if let (Ok(field_name), Ok(field_type)) = (parser.get_str(j), parser.get_str(j + 1)) {
+                    if let (Ok(_field_name), Ok(field_type)) = (parser.get_str(j), parser.get_str(j + 1)) {
                         if field_type.to_uppercase().starts_with("VECTOR") {
                             has_vector = true;
                             // Try to parse dimension from VECTOR(dim)
@@ -218,7 +218,7 @@ pub fn ft_search(parser: &mut ParsedCommand, db: &Database, dbindex: usize) -> R
             #[cfg(feature = "hnsw-backend")]
             {
                 let index = index_arc.lock().unwrap();
-                if let Ok(results) = index.search(&query_vector, 10) {
+                if let Ok(results) = index.search(&query_vector, 10, None) {
                     let mut response = Vec::new();
                     response.push(Response::Integer(results.len() as i64));
                     
@@ -236,7 +236,7 @@ pub fn ft_search(parser: &mut ParsedCommand, db: &Database, dbindex: usize) -> R
             #[cfg(not(feature = "hnsw-backend"))]
             {
                 let index = index_arc.lock().unwrap();
-                if let Ok(results) = index.search(&query_vector, 10) {
+                if let Ok(results) = index.search(&query_vector, 10, None) {
                     let mut response = Vec::new();
                     response.push(Response::Integer(results.len() as i64));
                     
@@ -272,7 +272,7 @@ pub fn ft_info(parser: &mut ParsedCommand, db: &Database, dbindex: usize) -> Res
     
     // Check if index exists
     let meta_key = index_meta_key(index_name);
-    let meta_value = match db.get(dbindex, &meta_key) {
+    let _meta_value = match db.get(dbindex, &meta_key) {
         Some(v) => v,
         None => return Response::Error("ERR no such index".to_owned()),
     };
@@ -360,7 +360,7 @@ pub fn ft_add(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> 
     let mut vector: Option<Vec<f32>> = None;
     let mut i = 4;
     while i + 1 < parser.argv.len() {
-        if let (Ok(field), Ok(value)) = (parser.get_str(i), parser.get_str(i + 1)) {
+        if let (Ok(field), Ok(_value)) = (parser.get_str(i), parser.get_str(i + 1)) {
             if field.to_uppercase() == "FIELDS" {
                 // Look for vector field
                 let mut j = i + 1;

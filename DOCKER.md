@@ -1,4 +1,4 @@
-# Dockerfile Options for rsedis
+# Dockerfile Options for redvector
 
 ## Available Dockerfiles
 
@@ -7,14 +7,14 @@
 - **Base**: Debian Bookworm Slim
 - **Size**: ~80-100MB
 - **Features**: Health checks, shell access, debugging tools
-- **Use**: `docker build -t rsedis:latest .`
+- **Use**: `docker build -t redvector:latest .`
 
 ### 2. Dockerfile.distroless (Ultra-Minimal)
 **Best for**: Maximum security and minimal footprint
 - **Base**: Google Distroless
 - **Size**: ~20-30MB
 - **Features**: No shell, no package manager, minimal attack surface
-- **Use**: `docker build -f Dockerfile.distroless -t rsedis:distroless .`
+- **Use**: `docker build -f Dockerfile.distroless -t redvector:distroless .`
 - **Note**: No health checks (no shell), use external monitoring
 
 ### 3. Dockerfile.debian (Alternative Debian)
@@ -22,19 +22,19 @@
 - **Base**: Debian Bookworm Slim
 - **Size**: ~80-100MB
 - **Features**: Same as default Dockerfile
-- **Use**: `docker build -f Dockerfile.debian -t rsedis:debian .`
+- **Use**: `docker build -f Dockerfile.debian -t redvector:debian .`
 
 ## Quick Start
 
 ```bash
 # Build default (Debian Slim)
-docker build -t rsedis:latest .
+docker build -t redvector:latest .
 
 # Build distroless (ultra-minimal)
-docker build -f Dockerfile.distroless -t rsedis:distroless .
+docker build -f Dockerfile.distroless -t redvector:distroless .
 
 # Run
-docker run -d -p 6379:6379 -v rsedis-data:/data rsedis:latest
+docker run -d -p 6379:6379 -v redvector-data:/data redvector:latest
 
 # Or use docker-compose
 docker-compose up -d

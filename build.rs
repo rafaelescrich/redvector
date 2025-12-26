@@ -5,7 +5,8 @@ use std::str::from_utf8;
 use std::{env, path};
 
 fn main() {
-    let path = path::Path::new(&env::var_os("OUT_DIR").unwrap()).join("release.rs");
+    let out_dir = env::var_os("OUT_DIR").unwrap();
+    let path = path::Path::new(&out_dir).join("release.rs");
 
     let mut f = File::create(path).unwrap();
 
@@ -51,5 +52,21 @@ fn main() {
             Err(_) => String::new(),
         };
         writeln!(f, "pub const RUSTC_VERSION: &str = {:?};", version).unwrap();
+    }
+
+    // Compile protobuf for gRPC when api-server feature is enabled
+    #[cfg(feature = "api-server")]
+    {
+        let proto_path = "api-server/proto/vector.proto";
+        if std::path::Path::new(proto_path).exists() {
+            // Create output directory for proto descriptor
+            let proto_out = path::Path::new(&out_dir).join("proto");
+            std::fs::create_dir_all(&proto_out).ok();
+            
+            tonic_build::configure()
+                .file_descriptor_set_path(proto_out.join("vector_descriptor.bin"))
+                .compile(&[proto_path], &["api-server/proto"])
+                .expect("Failed to compile protobuf");
+        }
     }
 }

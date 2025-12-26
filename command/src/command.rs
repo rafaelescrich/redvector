@@ -3470,9 +3470,9 @@ fn info(parser: &mut ParsedCommand, db: &Database) -> Response {
                 out,
                 "\
                  # Server\r\n\
-                 rsedis_version:{}\r\n\
-                 rsedis_git_sha1:{}\r\n\
-                 rsedis_git_dirty:{}\r\n\
+                 redvector_version:{}\r\n\
+                 redvector_git_sha1:{}\r\n\
+                 redvector_git_dirty:{}\r\n\
                  os:{} {} {}\r\n\
                  arch_bits:{}\r\n\
                  multiplexing_api:no\r\n\
@@ -8133,8 +8133,8 @@ mod test_command {
         let mut client = Client::mock();
         if let Response::Data(d) = command(parser!(b"info"), &mut db, &mut client).unwrap() {
             let s = from_utf8(&*d).unwrap();
-            assert!(s.contains("rsedis_git_sha1"));
-            assert!(s.contains("rsedis_git_dirty"));
+            assert!(s.contains("redvector_git_sha1"));
+            assert!(s.contains("redvector_git_dirty"));
         } else {
             panic!("Expected data");
         }

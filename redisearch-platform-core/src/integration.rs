@@ -1,11 +1,11 @@
-//! Integration layer between rsedis and redisearch-rust-port
+//! Integration layer between redvector and redisearch-rust-port
 //!
 //! This module provides the unified API that combines:
-//! - rsedis: Redis-compatible server
+//! - redvector: Redis-compatible server
 //! - redisearch-rust-port: Full-text and vector search
 
 // Placeholder for integration code
-// Will be implemented as we integrate rsedis and redisearch-rust-port
+// Will be implemented as we integrate redvector and redisearch-rust-port
 
 pub struct IntegrationLayer {
     // Will be added as we implement

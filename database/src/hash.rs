@@ -4,7 +4,7 @@ use std::io::Write;
 
 use error::OperationError;
 use rdbutil::constants::*;
-use rdbutil::{encode_len, encode_slice_u8, EncodeError};
+use rdbutil::{encode_len, encode_slice_u8};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ValueHash {
@@ -26,7 +26,8 @@ impl ValueHash {
     }
 
     /// Converts ziplist to hashtable if needed based on config limits
-    fn ensure_hashtable(&mut self, max_entries: usize, max_value: usize) {
+    #[allow(dead_code)]
+    fn ensure_hashtable(&mut self, _max_entries: usize, _max_value: usize) {
         if let ValueHash::ZipList(_) = self {
             // For now, we'll convert to hashtable when we need to add items
             // The actual ziplist format would need proper deserialization
@@ -34,6 +35,7 @@ impl ValueHash {
     }
 
     /// Converts hashtable to ziplist if it fits within limits
+    #[allow(dead_code)]
     fn try_convert_to_ziplist(&mut self, max_entries: usize, max_value: usize) {
         if let ValueHash::HashMap(ref map) = self {
             if map.len() <= max_entries {

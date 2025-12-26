@@ -1,376 +1,61 @@
-# rsedis TODO - Redis-Compatible Server Implementation
+# RedVector Roadmap
 
-## 🎉 Status: Core Implementation Complete ✅
+## ✅ Completed Features
 
-**Last Updated**: Integration complete with Docker support  
-**Completion**: ~95% of core Redis functionality implemented
+### Redis Compatibility
+- **150+ commands** implemented (GET, SET, MGET, MSET, LPUSH, RPUSH, SADD, ZADD, HSET, PUBLISH, SUBSCRIBE, MULTI, EXEC, etc.)
+- **30+ configuration options** with CONFIG GET/SET support
+- **Full INFO command** with all major sections
+- **Persistence**: RDB snapshots, AOF append-only file
 
-### Summary
-- ✅ **150+ Redis commands** implemented and tested
-- ✅ **30+ configuration options** with CONFIG GET/SET support
-- ✅ **Full INFO command** with all major sections
-- ✅ **Docker multi-stage build** (Debian-based, ~86MB image, distroless variant ~20-30MB)
-- ✅ **Test client** and integration tests passing
-- ✅ **Docker Compose** configuration ready
-- ⚠️ Advanced features (replication, clustering, Lua) pending
+### Vector Search
+- **FT.CREATE** - Create vector indexes with HNSW backend
+- **FT.ADD** - Add documents with vector embeddings
+- **FT.SEARCH** - KNN similarity search
+- **FT.INFO** - Index information
+- **FT.DROP** - Delete indexes
 
-### Quick Links
-- [Integration Details](INTEGRATION.md)
-- [Docker Usage](Dockerfile)
-- [Configuration Example](rsedis.conf)
+### APIs
+- **Redis Protocol** (port 6379) - Compatible with 50+ client libraries
+- **REST API** (port 8888) - Qdrant-compatible endpoints
+- **gRPC API** (port 50051) - High-performance Protobuf API
 
 ---
 
-- commands
-    - [x] get
-    - [x] set
-    - [x] setnx
-    - [x] setex
-    - [x] psetex
-    - [x] append
-    - [x] strlen
-    - [x] del
-    - [x] exists
-    - [x] setbit
-    - [x] getbit
-    - [x] setrange
-    - [x] getrange
-    - [x] substr
-    - [x] incr
-    - [x] decr
-    - [x] mget
-    - [x] rpush
-    - [x] lpush
-    - [x] rpushx
-    - [x] lpushx
-    - [x] linsert
-    - [x] rpop
-    - [x] lpop
-    - [x] brpop
-    - [x] brpoplpush
-    - [x] blpop
-    - [x] llen
-    - [x] lindex
-    - [x] lset
-    - [x] lrange
-    - [x] ltrim
-    - [x] lrem
-    - [x] rpoplpush
-    - [x] sadd
-    - [x] srem
-    - [x] smove
-    - [x] sismember
-    - [x] scard
-    - [x] spop
-    - [x] srandmember
-    - [x] sinter
-    - [x] sinterstore
-    - [x] sunion
-    - [x] sunionstore
-    - [x] sdiff
-    - [x] sdiffstore
-    - [x] smembers
-    - [x] sscan
-    - [x] zadd
-    - [x] zincrby
-    - [x] zrem
-    - [x] zremrangebyscore
-    - [x] zremrangebyrank
-    - [x] zremrangebylex
-    - [x] zunionstore
-    - [x] zinterstore
-    - [x] zrange
-    - [x] zrangebyscore
-    - [x] zrevrangebyscore
-    - [x] zrangebylex
-    - [x] zrevrangebylex
-    - [x] zcount
-    - [x] zlexcount
-    - [x] zrevrange
-    - [x] zcard
-    - [x] zscore
-    - [x] zrank
-    - [x] zrevrank
-    - [x] zscan
-    - [x] hset
-    - [x] hsetnx
-    - [x] hget
-    - [x] hmset
-    - [x] hmget
-    - [x] hincrby
-    - [x] hincrbyfloat
-    - [x] hdel
-    - [x] hlen
-    - [x] hstrlen
-    - [x] hkeys
-    - [x] hvals
-    - [x] hgetall
-    - [x] hexists
-    - [x] hscan
-    - [x] incrby
-    - [x] decrby
-    - [x] incrbyfloat
-    - [x] getset
-    - [x] mset
-    - [x] msetnx
-    - [x] randomkey
-    - [x] select
-    - [x] move
-    - [x] rename
-    - [x] renamenx
-    - [x] expire
-    - [x] expireat
-    - [x] pexpire
-    - [x] pexpireat
-    - [x] keys
-    - [x] scan
-    - [x] dbsize
-    - [x] auth
-    - [x] ping
-    - [x] echo
-    - [x] save
-    - [x] bgsave
-    - [x] bgrewriteaof
-    - [x] shutdown
-    - [x] lastsave
-    - [x] type
-    - [x] multi
-    - [x] exec
-    - [x] discard
-    - [ ] sync
-    - [ ] psync
-    - [ ] replconf
-    - [x] flushdb
-    - [x] flushall
-    - [x] sort
-    - info
-        - server
-            - [x] redis_version
-            - [x] redis_git_sha1
-            - [x] redis_git_dirty
-            - [x] os
-            - [x] arch_bits
-            - [x] multiplexing_api
-            - [x] gcc_version
-            - [x] process_id
-            - [x] run_id
-            - [x] tcp_port
-            - [x] uptime_in_seconds
-            - [x] uptime_in_days
-            - [x] lru_clock
-        - clients
-            - [x] connected_clients
-            - [x] client_longest_output_list
-            - [x] client_biggest_input_buf
-            - [x] blocked_clients
-        - memory
-            - [x] used_memory
-            - [x] used_memory_human
-            - [x] used_memory_rss
-            - [x] used_memory_peak
-            - [x] used_memory_peak_human
-            - [x] used_memory_lua
-            - [x] mem_fragmentation_ratio
-            - [x] mem_allocator
-        - persistence
-            - [x] loading
-            - [x] rdb_changes_since_last_save
-            - [x] rdb_bgsave_in_progress
-            - [x] rdb_last_save_time
-            - [x] rdb_last_bgsave_status
-            - [x] rdb_last_bgsave_time_sec
-            - [x] rdb_current_bgsave_time_sec
-            - [x] aof_enabled
-            - [x] aof_rewrite_in_progress
-            - [x] aof_rewrite_scheduled
-            - [x] aof_last_rewrite_time_sec
-            - [x] aof_current_rewrite_time_sec
-            - [x] aof_last_bgrewrite_status
-            - [x] changes_since_last_save
-        - If AOF is activated
-            - [x] aof_current_size
-            - [x] aof_base_size
-            - [x] aof_pending_rewrite
-            - [x] aof_buffer_length
-            - [x] aof_rewrite_buffer_length
-            - [x] aof_pending_bio_fsync
-            - [x] aof_delayed_fsync
-        - If a load operation is on-going
-            - [x] loading_start_time
-            - [x] loading_total_bytes
-            - [x] loading_loaded_bytes
-            - [x] loading_loaded_perc
-            - [x] loading_eta_seconds
-        - stats
-            - [x] total_connections_received
-            - [x] total_commands_processed
-            - [x] instantaneous_ops_per_sec
-            - [x] rejected_connections
-            - [x] expired_keys
-            - [x] evicted_keys
-            - [x] keyspace_hits
-            - [x] keyspace_misses
-            - [x] pubsub_channels
-            - [x] pubsub_patterns
-            - [x] latest_fork_usec
-        - replication
-            - [x] role
-            - If the instance is a slave
-                - [ ] master_host
-                - [ ] master_port
-                - [ ] master_link_status
-                - [ ] master_last_io_seconds_ago
-                - [ ] master_sync_in_progress
-            - If a SYNC operation is on-going
-                - [ ] master_sync_left_bytes
-                - [ ] master_sync_last_io_seconds_ago
-            - If the link between master and slave is down
-                - [ ] master_link_down_since_seconds
-            - The following field is always provided
-                - [x] connected_slaves
-            - For each slave, the following line is added
-                - [ ] slaveXXX
-        - cpu
-            - [x] used_cpu_sys
-            - [x] used_cpu_user
-            - [x] used_cpu_sys_children
-            - [x] used_cpu_user_children
-        - commandstats
-            - For each command type, the following line is added
-                - [x] cmdstat_XXX
-            - The cluster section currently only contains a unique field
-                - [x] cluster_enabled
-        - keyspace
-            - db
-                - [x] keys=XXX
-                - [x] expires=XXX
-                - [x] avg_ttl=XXX
-    - [x] monitor
-    - [x] ttl
-    - [x] pttl
-    - [x] persist
-    - [x] slaveof
-    - [x] role
-    - [x] debug
-    - [x] config
-    - [x] subscribe
-    - [x] unsubscribe
-    - [x] psubscribe
-    - [x] punsubscribe
-    - [x] publish
-    - [x] pubsub
-    - [x] watch
-    - [x] unwatch
-    - [ ] cluster
-    - [x] restore
-    - [ ] restore-asking
-    - [ ] migrate
-    - [ ] asking
-    - [ ] readonly
-    - [ ] readwrite
-    - [x] dump
-    - [x] object
-    - [x] client
-    - [ ] eval
-    - [ ] evalsha
-    - [x] slowlog
-    - [ ] script
-    - [x] time
-    - [x] bitop
-    - [x] bitcount
-    - [x] bitpos
-    - [x] wait
-    - [x] command
-    - [x] pfselftest
-    - [x] pfadd
-    - [x] pfcount
-    - [x] pfmerge
-    - [x] pfdebug
-    - [ ] latency
-- config
-    - [x] include
-    - [x] daemonize
-    - [x] pidfile
-    - [x] port
-    - [x] tcp-backlog
-    - [x] bind
-    - [x] unixsocket
-    - [x] unixsocketperm
-    - [x] timeout
-    - [x] tcp-keepalive
-    - [x] loglevel
-    - [x] logfile
-    - [x] syslog-enabled
-    - [x] syslog-ident
-    - [x] syslog-facility
-    - [x] databases
-    - [x] save
-    - [x] stop-writes-on-bgsave-error
-    - [x] rdbcompression
-    - [x] rdbchecksum
-    - [x] dbfilename
-    - [x] dir
-    - [ ] slaveof
-    - [ ] masterauth
-    - [ ] slave-serve-stale-data
-    - [ ] slave-read-only
-    - [ ] repl-diskless-sync
-    - [ ] repl-diskless-sync-delay
-    - [ ] repl-ping-slave-period
-    - [ ] repl-timeout
-    - [ ] repl-disable-tcp-nodelay
-    - [ ] repl-backlog-size
-    - [ ] repl-backlog-ttl
-    - [ ] slave-priority
-    - [ ] min-slaves-to-write
-    - [ ] min-slaves-max-lag
-    - [x] requirepass
-    - [x] rename-command
-    - [x] maxclients
-    - [x] maxmemory
-    - [x] maxmemory-policy
-        - [x] volatile-lru
-        - [x] allkeys-lru
-        - [x] volatile-random
-        - [x] allkeys-random
-        - [x] volatile-ttl
-        - [x] noeviction
-    - [x] maxmemory-samples
-    - [x] appendonly
-    - [x] appendfilename
-    - [x] appendfsync
-        - [x] always
-        - [x] everysec
-        - [x] no
-    - [x] no-appendfsync-on-rewrite
-    - [x] auto-aof-rewrite-percentage
-    - [x] auto-aof-rewrite-min-size
-    - [x] aof-load-truncated
-    - [ ] lua-time-limit
-    - [x] slowlog-log-slower-than
-    - [x] slowlog-max-len
-    - [x] latency-monitor-threshold
-    - [x] notify-keyspace-events
-        - [x] K     Keyspace events, published with __keyspace@<db>__ prefix.
-        - [x] E     Keyevent events, published with __keyevent@<db>__ prefix.
-        - [x] g     Generic commands (non-type specific) like DEL, EXPIRE, RENAME, ...
-        - [x] $     String commands
-        - [x] l     List commands
-        - [x]  s     Set commands
-        - [x] h     Hash commands
-        - [x] z     Sorted set commands
-        - [x] x     Expired events (events generated every time a key expires)
-        - [x]  e     Evicted events (events generated when a key is evicted for maxmemory)
-        - [x]  A     Alias for g$lshzxe, so that the "AKE" string means all the events.
-    - [x] hash-max-ziplist-entries
-    - [x] hash-max-ziplist-value
-    - [x] list-max-ziplist-entries
-    - [x] list-max-ziplist-value
-    - [x] set-max-intset-entries
-    - [x] zset-max-ziplist-entries
-    - [x] zset-max-ziplist-value
-    - [ ] hll-sparse-max-bytes
-    - [x] activerehashing
-    - [ ] client-output-buffer-limit
-    - [x] hz
-    - [ ] aof-rewrite-incremental-fsync
+## 🔨 In Progress
+
+### v0.2.0 - GPU Acceleration
+- [ ] wgpu backend (Vulkan/Metal/DX12)
+- [ ] CUDA backend for NVIDIA
+- [ ] Apple Silicon Metal optimization
+- [ ] GPU-accelerated distance metrics
+
+---
+
+## 📋 Planned
+
+### v1.0.0 - Production Ready
+- [ ] IVF-Flat index
+- [ ] IVF-SQ8 index (4x compression)
+- [ ] IVF-PQ index (32x compression)
+- [ ] Memory-mapped vector storage
+- [ ] Production hardening and benchmarks
+
+### v2.0.0 - Enterprise (Closed Source)
+- [ ] Distributed clustering
+- [ ] Multi-node replication
+- [ ] Sharding and partitioning
+- [ ] Cloud management console
+- [ ] Enterprise support
+
+---
+
+## ⚠️ Known Limitations
+
+### Not Yet Implemented
+- Lua scripting (EVAL, EVALSHA, SCRIPT)
+- Cluster mode commands
+- Full replication (SYNC, PSYNC, REPLCONF)
+- Some advanced replication configs
+
+These features are planned for future versions.

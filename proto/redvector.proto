@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package redvector;
+
+// Vector database service - Qdrant-compatible API
+service VectorService {
+    // Create a new collection
+    rpc CreateCollection(CreateCollectionRequest) returns (CreateCollectionResponse);
+    
+    // Upsert points (vectors with optional payloads)
+    rpc Upsert(UpsertRequest) returns (UpsertResponse);
+    
+    // Search for similar vectors
+    rpc Search(SearchRequest) returns (SearchResponse);
+    
+    // Get collection information
+    rpc GetCollectionInfo(GetCollectionInfoRequest) returns (GetCollectionInfoResponse);
+    
+    // Delete a collection
+    rpc DeleteCollection(DeleteCollectionRequest) returns (DeleteCollectionResponse);
+}
+
+// Create collection request
+message CreateCollectionRequest {
+    string collection_name = 1;
+    uint32 vector_size = 2;
+    string distance = 3;  // "Cosine", "Euclidean", "Dot"
+}
+
+message CreateCollectionResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+// Point with vector and optional payload
+message Point {
+    uint64 id = 1;
+    repeated float vector = 2;
+    map<string, string> payload = 3;
+}
+
+// Upsert request
+message UpsertRequest {
+    string collection_name = 1;
+    repeated Point points = 2;
+}
+
+message UpsertResponse {
+    bool success = 1;
+    uint32 upserted_count = 2;
+}
+
+// Search request
+message SearchRequest {
+    string collection_name = 1;
+    repeated float vector = 2;
+    uint32 limit = 3;
+    float score_threshold = 4;
+}
+
+// Search result
+message ScoredPoint {
+    uint64 id = 1;
+    float score = 2;
+    map<string, string> payload = 3;
+}
+
+message SearchResponse {
+    repeated ScoredPoint results = 1;
+}
+
+// Get collection info
+message GetCollectionInfoRequest {
+    string collection_name = 1;
+}
+
+message GetCollectionInfoResponse {
+    string collection_name = 1;
+    uint32 vector_size = 2;
+    uint64 points_count = 3;
+    string distance = 4;
+}
+
+// Delete collection
+message DeleteCollectionRequest {
+    string collection_name = 1;
+}
+
+message DeleteCollectionResponse {
+    bool success = 1;
+}
+

@@ -582,7 +582,7 @@ impl VectorService for VectorServiceImpl {
         match indexes.get(&req.collection_name) {
             Some(index_arc) => {
                 let index = index_arc.lock().unwrap();
-                match index.search(&req.query_vector, req.top as usize, None) {
+                match index.search(&req.vector, req.limit as usize, None) {
                     Ok(results) => {
                         let scored_points: Vec<grpc::ScoredPoint> = results
                             .into_iter()
@@ -594,7 +594,7 @@ impl VectorService for VectorServiceImpl {
                             .collect();
                         
                         Ok(Response::new(grpc::SearchResponse {
-                            result: scored_points,
+                            results: scored_points,
                         }))
                     }
                     Err(e) => Err(Status::internal(format!("Search failed: {}", e))),

@@ -8,28 +8,28 @@ services:
     image: redvector:latest
     container_name: redvector
     ports:
-      - "6379:6379"
+      - "6379:6379"   # Redis protocol
+      - "8888:8888"   # REST API
+      - "50051:50051" # gRPC API
     volumes:
       - redvector-data:/data
-      - ./redvector.conf:/etc/redvector/redvector.conf:ro
     environment:
       - RUST_LOG=info
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "echo -e '*1\\r\\n$$4\\r\\nPING\\r\\n' | timeout 1 nc localhost 6379 | grep -q PONG || exit 1"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8888/health"]
       interval: 30s
       timeout: 3s
       retries: 3
-      start_period: 5s
+      start_period: 10s
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 2G
+          cpus: '4'
+          memory: 4G
         reservations:
-          cpus: '0.5'
-          memory: 512M
-    command: ["/etc/redvector/redvector.conf"]
+          cpus: '1'
+          memory: 1G
     networks:
       - redvector-network
 
@@ -40,4 +40,3 @@ volumes:
 networks:
   redvector-network:
     driver: bridge
-

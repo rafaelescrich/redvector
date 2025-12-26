@@ -1,23 +1,25 @@
-# Multi-stage Dockerfile for redvector - Ultra-performant Redis-compatible server
-# Using Debian slim for build, Debian slim for runtime (better compatibility)
-# Stage 1: Build dependencies
-FROM rust:1.80-slim AS builder
+# Multi-stage Dockerfile for RedVector - Redis-compatible Vector Database
+# Stage 1: Build
+FROM rust:1.83-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     ca-certificates \
+    protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
 WORKDIR /build
 
-# Copy dependency manifests first for better caching
-COPY Cargo.toml ./
+# Copy manifests first for better caching
+COPY Cargo.toml Cargo.lock ./
+COPY build.rs ./
+COPY proto/ ./proto/
 COPY command/Cargo.toml ./command/
 COPY config/Cargo.toml ./config/
 COPY database/Cargo.toml ./database/
+COPY database/rdbutil/Cargo.toml ./database/rdbutil/
 COPY networking/Cargo.toml ./networking/
 COPY parser/Cargo.toml ./parser/
 COPY response/Cargo.toml ./response/
@@ -25,15 +27,15 @@ COPY persistence/Cargo.toml ./persistence/
 COPY logger/Cargo.toml ./logger/
 COPY util/Cargo.toml ./util/
 COPY compat/Cargo.toml ./compat/
-# Copy Cargo.lock if it exists
-COPY Cargo.lock* ./
 
 # Create dummy source files to build dependencies
-RUN mkdir -p src command/src config/src database/src networking/src parser/src response/src persistence/src logger/src util/src compat/src && \
+RUN mkdir -p src command/src config/src database/src database/rdbutil/src \
+    networking/src parser/src response/src persistence/src logger/src util/src compat/src && \
     echo "fn main() {}" > src/main.rs && \
     echo "pub fn dummy() {}" > command/src/lib.rs && \
     echo "pub fn dummy() {}" > config/src/lib.rs && \
     echo "pub fn dummy() {}" > database/src/lib.rs && \
+    echo "pub fn dummy() {}" > database/rdbutil/src/lib.rs && \
     echo "pub fn dummy() {}" > networking/src/lib.rs && \
     echo "pub fn dummy() {}" > parser/src/lib.rs && \
     echo "pub fn dummy() {}" > response/src/lib.rs && \
@@ -42,49 +44,43 @@ RUN mkdir -p src command/src config/src database/src networking/src parser/src r
     echo "pub fn dummy() {}" > util/src/lib.rs && \
     echo "pub fn dummy() {}" > compat/src/lib.rs
 
-# Build dependencies (this layer will be cached)
-RUN cargo build --release 2>&1 | grep -v "^   Compiling" || true
+# Build dependencies (cached layer)
+RUN cargo build --release --features "vector-search,hnsw-backend" 2>&1 || true
 
 # Copy actual source code
 COPY . .
 
-# Build the actual application with optimizations (without vector-search feature for Docker)
-RUN cargo build --release --no-default-features && \
+# Touch main.rs to force rebuild
+RUN touch src/main.rs
+
+# Build with all features
+RUN cargo build --release --features "full" && \
     strip /build/target/release/redvector
 
-# Stage 2: Minimal Debian runtime
+# Stage 2: Runtime
 FROM debian:bookworm-slim
 
-# Install only runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
-    netcat-openbsd \
+    curl \
     && rm -rf /var/lib/apt/lists/* && \
     groupadd -r -g 1000 redvector && \
     useradd -r -u 1000 -g redvector redvector
 
-# Copy the binary from builder
 COPY --from=builder /build/target/release/redvector /usr/local/bin/redvector
 
-# Create data directory
 RUN mkdir -p /data && chown -R redvector:redvector /data
 
-# Set working directory
 WORKDIR /data
 
-# Expose Redis default port
-EXPOSE 6379
+# Redis protocol + REST API + gRPC API
+EXPOSE 6379 8888 50051
 
-# Health check using PING command
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD sh -c 'echo -e "*1\r\n$$4\r\nPING\r\n" | timeout 1 nc localhost 6379 | grep -q PONG || exit 1'
+    CMD curl -sf http://localhost:8888/health || exit 1
 
-# Run as non-root user
 USER redvector
 
-# Default command
 ENTRYPOINT ["/usr/local/bin/redvector"]
-
-# Default arguments (can be overridden)
 CMD []

@@ -11,7 +11,7 @@ use std::sync::Mutex;
 use database::vector_index::{HnswVectorIndex, VectorMetric, VectorIndexTrait};
 
 /// Benchmark configuration
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BenchmarkConfig {
     pub dataset_size: usize,
     pub vector_dimension: usize,

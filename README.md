@@ -330,6 +330,18 @@ cargo build --release --features full
 
 ---
 
+## 🙏 Acknowledgments
+
+RedVector is inspired by and built upon the excellent work of the open-source community:
+
+- **[rsedis](https://github.com/seppo0010/rsedis)**: Redis re-implemented in Rust by [Sebastian Waisbrot](https://github.com/seppo0010). The rsedis project provided significant inspiration for the Redis-compatible server implementation.
+
+- **[RediSearch](https://github.com/RediSearch/RediSearch)**: A query and indexing engine for Redis, providing secondary indexing, full-text search, and vector similarity search. RediSearch's design and feature set inspired the vector search capabilities in RedVector.
+
+We are grateful to the maintainers and contributors of these projects for their valuable work in the open-source ecosystem.
+
+---
+
 ## 📄 License
 
 Copyright (c) 2025, Rafael Escrich

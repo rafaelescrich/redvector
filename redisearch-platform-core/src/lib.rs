@@ -23,6 +23,7 @@ pub mod storage;
 pub mod integration;
 pub mod simd_metrics;
 pub mod persistent_index;
+pub mod quantization;
 
 /// GPU acceleration module (ADR-001)
 #[cfg(any(feature = "gpu-wgpu", feature = "gpu-cuda"))]

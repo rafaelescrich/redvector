@@ -41,6 +41,7 @@ redis = "0.24"
 # Utilities
 lru = "0.12"
 fastrand = "2.0"
+rand = "0.8"
 
 # RVF2 dependencies (feature-gated)
 memmap2 = { version = "0.9", optional = true }

@@ -11,6 +11,26 @@ path = "qdrant_comparison.rs"
 name = "hnsw_benchmark"
 path = "hnsw_benchmark.rs"
 
+[[bin]]
+name = "simd_bench"
+path = "simd_bench.rs"
+
+[[bin]]
+name = "pq_bench"
+path = "pq_bench.rs"
+
+[[bin]]
+name = "recall_bench"
+path = "recall_bench.rs"
+
+[[bin]]
+name = "rag_integration_bench"
+path = "rag_integration_bench.rs"
+
+[[bin]]
+name = "edgar_rag"
+path = "edgar_rag.rs"
+
 [dependencies]
 redis = "0.24"
 rand = { version = "0.8", features = ["small_rng"] }
@@ -19,6 +39,12 @@ reqwest = { version = "0.11", features = ["blocking", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 database = { path = "../database" }
+redisearch-platform-core = { path = "../redisearch-platform-core" }
+parquet = "58.3.0"
+zip = "8.6.0"
+fastembed = "5.13.4"
+anyhow = "1.0.102"
+scraper = "0.27.0"
 
 [features]
 default = []

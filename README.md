@@ -5,11 +5,13 @@
 
 **High-Performance In-Memory Vector Database Built in Rust**
 
-RedVector is an in-memory vector database that combines Redis compatibility with advanced vector search capabilities. Built on a Redis-compatible server (rsedis-style) and the Redisearch platform, it delivers predictable low-latency performance for AI applications, semantic search, RAG pipelines, and recommendation systems.
+RedVector is an in-memory vector database that combines Redis compatibility with advanced vector search capabilities. Built on a Redis-compatible server (rsedis-style) and the Redisearch platform, it targets predictable low-latency performance for AI applications, semantic search, RAG pipelines, and recommendation systems.
+
+**Project status (v0.1.0):** Early development. Redis wire protocol and a large command subset are implemented; vector search (`FT.*` with `--features vector-search`) and optional REST/gRPC (`--features full`) work in-tree. Some README items below are **roadmap** or **platform-crate** capabilities—see [Roadmap](#roadmap) and [Current limitations](#current-limitations).
 
 **Built on:**
-- **Redis-Compatible Server**: Full Redis protocol implementation in Rust (150+ commands)
-- **Redisearch Platform**: Vector search engine with HNSW indexing, GPU acceleration, and multi-vector support
+- **Redis-Compatible Server**: RESP-based server in Rust derived from the [rsedis](https://github.com/seppo0010/rsedis) lineage—about **150 commands** advertised via `COMMAND`, not full Redis parity with every edge case
+- **Redisearch Platform Core**: In-repo vector/HNSW stack; optional **GPU**, **RVF2**, and **S3** exist as feature-gated modules in that crate and are **not** enabled by the main `redvector` crate’s `full` feature today
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -20,8 +22,8 @@ RedVector is an in-memory vector database that combines Redis compatibility with
 │   │   Strings   │   │   Vectors   │   │   REST API  │   │  gRPC API   │    │
 │   │   Lists     │   │   HNSW      │   │   Port 8888 │   │  Port 50051 │    │
 │   │   Sets      │   │   Cosine    │   │   JSON      │   │  Protobuf   │    │
-│   │   Hashes    │   │   Euclidean │   │   Qdrant-   │   │  Qdrant-    │    │
-│   └─────────────┘   └─────────────┘   └──compatible─┘   └──compatible─┘    │
+│   │   Hashes    │   │   Euclidean │   │ Qdrant-like  │   │ Qdrant-like  │    │
+│   └─────────────┘   └─────────────┘   └─────────────┘   └─────────────┘    │
 │                                                                              │
 │   ONE SERVER • 50+ CLIENT LANGUAGES • THREE PROTOCOLS • IN-MEMORY          │
 │                                                                              │
@@ -46,8 +48,8 @@ RedVector is an in-memory vector database that combines Redis compatibility with
 
 ### 🔴 Redis Protocol Compatibility
 
-- **150+ Redis Commands**: Full compatibility with Redis protocol (port 6379)
-- **Data Structures**:
+- **~150 commands**: Broad rsedis-style subset on port **6379** (see `COMMAND` output); behavior may differ from Redis on persistence, replication, and admin commands
+- **Data structures** (representative):
   - **Strings**: GET, SET, MGET, MSET, INCR, DECR, APPEND, GETSET, STRLEN
   - **Lists**: LPUSH, RPUSH, LPOP, RPOP, LRANGE, LINDEX, LLEN, LTRIM
   - **Sets**: SADD, SREM, SMEMBERS, SINTER, SUNION, SDIFF, SCARD, SISMEMBER
@@ -55,35 +57,36 @@ RedVector is an in-memory vector database that combines Redis compatibility with
   - **Sorted Sets**: ZADD, ZRANGE, ZRANK, ZSCORE, ZREM, ZCARD, ZCOUNT
 - **Pub/Sub**: SUBSCRIBE, PUBLISH, PSUBSCRIBE, UNSUBSCRIBE
 - **Transactions**: MULTI, EXEC, DISCARD, WATCH for atomic operations
-- **Persistence**: RDB snapshots and AOF (Append-Only File) for data durability
+- **Persistence**: RDB/AOF-related commands exist; **durable RDB save / AOF rewrite to disk is still incomplete** (see [Current limitations](#current-limitations))
 
 ### 🔍 Vector Search Features (RediSearch Compatible)
 
 Built on **Redisearch Platform Core** with HNSW indexing:
 
-- **FT.CREATE**: Create vector indexes with configurable HNSW parameters (m, ef_construction)
+- **FT.CREATE**: Create vector indexes; schema parsing is simplified (dimension from `VECTOR(dim)` in `SCHEMA`)
 - **FT.ADD**: Add documents with vector embeddings to the index
-- **FT.SEARCH**: K-nearest neighbor (KNN) similarity search with configurable ef_search
+- **FT.SEARCH**: KNN-style search; query vector as comma-separated floats (see tests / handler for options)
 - **FT.INFO**: Get detailed index information and statistics
 - **FT.DROP**: Delete indexes and collections
 - **FT.DEL**: Delete individual documents from indexes
 - **HNSW Backend**: Hierarchical Navigable Small World graph for fast approximate search
-- **Automatic Backend Selection**: Linear scan for small datasets, HNSW for large datasets
-- **Multi-Vector Support**: RVF2 format for ColPali/ColBERT-style multi-vector retrieval (optional)
+- **Multi-vector (RVF2)**: Optional in **redisearch-platform-core** (`rvf2` feature); not wired through the default `redvector` binary features yet
 
-### 🌐 REST API (Qdrant-Compatible)
+### 🌐 REST API (Qdrant-inspired)
 
-- **Collection Management**:
-  - `POST /api/collections/:name` - Create collection
-  - `GET /api/collections` - List all collections
-  - `GET /api/collections/:name` - Get collection info
-  - `DELETE /api/collections/:name` - Delete collection
-- **Vector Operations**:
-  - `POST /api/collections/:name/points` - Upsert vectors
-  - `GET /api/collections/:name/points/:id` - Get vector by ID
-  - `POST /api/collections/:name/points/delete` - Delete vectors
-  - `GET /api/collections/:name/search` - Search vectors
-- **JSON Format**: All requests and responses use JSON
+Implemented in `src/api.rs` when built with `--features full` (or `api-server`). JSON bodies/responses; not a full Qdrant clone.
+
+- **Meta**: `GET /health`, `GET /api/info`, `GET /` (HTML API docs)
+- **Collections**:
+  - `POST /api/collections/:name` — create collection (JSON body)
+  - `GET /api/collections` — list collections
+  - `GET /api/collections/:name` — collection info
+  - `DELETE /api/collections/:name` — delete collection
+- **Points**:
+  - `POST /api/collections/:name/points` — upsert points (JSON body)
+  - `GET /api/collections/:name/search?vector=0.1,0.2,...&limit=10` — similarity search (**query string**, comma-separated floats)
+
+Per-point GET/delete routes are **not** exposed yet.
 
 ### 🔌 gRPC API
 
@@ -98,24 +101,19 @@ Built on **Redisearch Platform Core** with HNSW indexing:
 
 ### ⚡ Performance Features
 
-- **Zero GC Pauses**: Pure Rust implementation eliminates garbage collection
-- **Predictable Latency**: Consistent P99 performance under load
+- **Zero GC Pauses**: Pure Rust implementation eliminates garbage collection pauses in the server process
 - **Concurrent Operations**: Multi-threaded architecture for parallel processing
-- **Memory Efficiency**: Optimized data structures for minimal memory footprint
-- **Fast Index Updates**: Real-time index modifications without blocking
-- **GPU Acceleration**: Optional wgpu (Vulkan/Metal/DX12) and CUDA backends for vector operations
-- **SIMD Optimizations**: CPU-optimized distance metrics for faster similarity calculations
-- **LRU Caching**: Hot vector cache for frequently accessed embeddings
+- **Memory Efficiency**: In-memory structures tuned for embedding workloads
+- **HNSW**: Approximate nearest-neighbor search when `hnsw-backend` is enabled
+- **GPU (roadmap / platform crate)**: Optional `gpu-wgpu` / `gpu-cuda` in **redisearch-platform-core**—not compiled into the default `redvector` `full` feature set
+- **SIMD**: Additional SIMD distance kernels are planned (see platform crate / ADRs); not the primary story for the main binary yet
+- **LRU**: Available in platform storage paths; integration depth depends on configuration and features
 
 ### 💾 Persistence & Durability
 
-- **RDB Snapshots**: Point-in-time snapshots of the Redis-compatible database
-- **AOF (Append-Only File)**: Durable write-ahead logging for Redis data
-- **redb Vector Storage**: Persistent storage for vectors and metadata using redb
-- **HNSW Snapshots**: Periodic snapshots of HNSW index structure
-- **Background Persistence**: Non-blocking save operations
-- **Data Recovery**: Automatic recovery on server restart
-- **S3 Storage**: Optional S3/GCS/MinIO integration for vector storage (feature flag)
+- **Redis-side RDB/AOF**: Work in progress; do not rely on `SAVE`/`BGSAVE`/`BGREWRITEAOF` for production durability yet
+- **redisearch-platform-core + redb**: The platform crate includes **redb**-backed storage and related design; wiring and defaults for the top-level server are still evolving
+- **S3 / object store**: Optional **`s3`** feature in the platform crate (AWS SDK), not enabled by `redvector`’s default `full` feature
 
 ### 🔧 Developer Experience
 
@@ -150,15 +148,17 @@ cargo build --release --features full
 ./target/release/redvector
 ```
 
-Output:
+Output (with `--features full`):
 ```
-🚀 RedVector v0.1.0 - In-Memory Vector Database
+🚀 RedVector v0.1.0 - Redis-Compatible Vector Database
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔴 Redis Protocol: localhost:6379
 📊 REST API:       http://localhost:8888
 🔌 gRPC API:       http://localhost:50051
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
+
+With **default features** (no `api-server`), only the Redis port is started; build with `--features full` for REST and gRPC.
 
 ### Connect with Any Redis Client
 
@@ -193,10 +193,10 @@ curl -X POST http://localhost:8888/api/collections/my_vectors/points \
     ]
   }'
 
-# Search
-curl -X POST http://localhost:8888/api/collections/my_vectors/search \
-  -H "Content-Type: application/json" \
-  -d '{"vector": [0.1, 0.2, 0.3, ...], "limit": 10}'
+# Search (GET + comma-separated floats)
+curl -G "http://localhost:8888/api/collections/my_vectors/search" \
+  --data-urlencode "vector=0.1,0.2,0.3" \
+  --data-urlencode "limit=10"
 ```
 
 ### Using gRPC API
@@ -213,8 +213,10 @@ grpcurl -plaintext localhost:50051 redvector.VectorService/CreateCollection \
 
 RedVector is built on two core components:
 
-1. **Redis-Compatible Server** (rsedis-style): Handles all Redis protocol commands, data structures, and persistence
-2. **Redisearch Platform Core**: Provides vector search capabilities with HNSW indexing, GPU acceleration, and advanced features
+1. **Redis-Compatible Server** (rsedis-style): RESP, core data structures, and a large command subset; persistence and replication are not complete
+2. **Redisearch Platform Core**: Library crate in this repo for vector/HNSW and optional GPU, RVF2, S3, redb-backed storage—used by `FT.*` when `vector-search` is enabled
+
+**Important:** With `--features full`, the REST/gRPC servers currently use a **separate** `Database` instance from the Redis acceptor path (see `src/main.rs`). Data ingested over Redis is not visible to REST/gRPC and vice versa until that wiring is unified.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -230,21 +232,19 @@ RedVector is built on two core components:
 │                             ▼                                               │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
 │   │              Redisearch Platform Core                                │   │
-│   │   • HNSW Vector Index (CPU)  • GPU Acceleration (wgpu/CUDA)         │   │
-│   │   • RVF2 Multi-Vector Storage  • Quantization (SQ8, PQ)              │   │
-│   │   • Cosine/Euclidean/Inner Product  • Persistent Index (redb)        │   │
+│   │   • HNSW (CPU) • Optional GPU / RVF2 / redb / S3 (platform features)   │   │
+│   │   • Cosine / Euclidean / inner product (metric support varies by path) │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                             │                                               │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
 │   │         Redis-Compatible Key-Value Store (In-Memory)                 │   │
 │   │    Strings • Lists • Sets • Hashes • Sorted Sets • Pub/Sub          │   │
-│   │    • 150+ Redis Commands  • Transactions  • Persistence (RDB/AOF)    │   │
+│   │    • ~150 commands • Transactions • RDB/AOF (in progress)             │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                             │                                               │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
 │   │                       Persistence Layer                              │   │
-│   │              • RDB Snapshots  • AOF Append-Only File                 │   │
-│   │              • redb Vector Storage  • HNSW Snapshots                  │   │
+│   │    • RDB/AOF (WIP) • redb / platform persistence (see crate features)   │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -262,7 +262,7 @@ RedVector is built on two core components:
 | **REST API** | ✅ | ✅ | ✅ | ✅ | ❌ |
 | **gRPC API** | ✅ | ✅ | ✅ | ❌ | ❌ |
 | **No GC Pauses** | ✅ | ✅ | ❌ | ? | ✅ |
-| **Built-in Cache** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Built-in Cache** | Partial (platform) | ❌ | ❌ | ❌ | ❌ |
 | **Pub/Sub** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Transactions** | ✅ | ❌ | ❌ | ❌ | ✅ |
 | **Self-Hosted** | ✅ | ✅ | ✅ | ❌ | ✅ |
@@ -273,33 +273,48 @@ RedVector is built on two core components:
 
 ## 🗺️ Roadmap
 
-### v0.1.0 - Current ✅
-- Redis-compatible server (rsedis-style) with 150+ commands
-- Redisearch Platform Core integration
-- In-memory vector storage with HNSW indexing
-- RediSearch FT.* commands (FT.CREATE, FT.ADD, FT.SEARCH, FT.INFO, FT.DROP, FT.DEL)
-- Integrated REST API (Qdrant-compatible)
-- Integrated gRPC API
-- Persistence (RDB, AOF, redb for vectors)
+### v0.1.0 — current release (**in progress**, not “done”)
 
-### v0.2.0 - GPU Acceleration
-- wgpu backend (Vulkan/Metal/DX12) via Redisearch Platform Core
-- CUDA backend for NVIDIA GPUs
-- Apple Silicon Metal optimization
-- GPU-accelerated distance metrics
-- Flat and IVF indexes on GPU
+Shipped in source today:
 
-### v1.0.0 - Production Ready
-- IVF-SQ8 index (4x compression) via Redisearch Platform Core
-- IVF-PQ index (32x compression) for maximum memory efficiency
-- Memory-mapped vector storage with RVF2 format
-- Full-text search integration (Redisearch rust-port)
-- Production hardening and comprehensive benchmarks
+- [x] Redis-compatible server (rsedis-style) with ~150 commands in `COMMAND`
+- [x] `FT.CREATE` / `FT.ADD` / `FT.SEARCH` / `FT.INFO` / `FT.DROP` / `FT.DEL` behind `--features vector-search` (with `hnsw-backend` for HNSW in the main path)
+- [x] Optional REST + gRPC in the same binary (`--features full` / `api-server`)
+- [x] Docker image builds with `--features full`
 
-### v2.0.0 - Enterprise (Closed Source)
-- Distributed clustering
-- Multi-node replication
-- Cloud management console
+Still open for v0.1.x (was incorrectly implied as finished before):
+
+- [ ] **Single shared database** between Redis and REST/gRPC (today: separate `Database` for APIs—see `src/main.rs`)
+- [ ] **Production persistence**: complete RDB serialization/deserialization, real `SAVE`/`BGSAVE` to disk, AOF rewrite (several `TODO`s in `command/src/command.rs`)
+- [ ] **Integration tests** in CI for `FT.*`, REST, and gRPC (root crate currently runs **0** unit tests; add coverage over time)
+- [ ] **REST parity**: per-point get/delete, JSON `search` body if desired, distance metric plumbing (REST currently reports Cosine in listing)
+- [ ] **Wire platform features** into the default binary when ready: optional `gpu-*`, `rvf2`, `s3` from **redisearch-platform-core**
+
+### v0.2.0 — GPU acceleration (platform + binary)
+
+- [ ] Enable and document `gpu-wgpu` / `gpu-cuda` (or `gpu-all`) from the platform crate in the main `redvector` feature set
+- [ ] GPU distance metrics and benchmarks
+- [ ] Flat / IVF on GPU (as feasible)
+
+### v1.0.0 — production ready
+
+- [ ] IVF-SQ8 / IVF-PQ and related compression paths where applicable
+- [ ] RVF2 / memory-mapped multi-vector workflows productized
+- [ ] Full-text search (RediSearch-style) if scoped
+- [ ] Hardening, fuzzing, and benchmark suite
+
+### v2.0.0 — enterprise (closed source) *(vision)*
+
+- [ ] Distributed clustering, replication, managed console
+
+---
+
+## Current limitations
+
+- **Split datastore** when using `full`: Redis and HTTP/gRPC do not share one `Database` yet.
+- **Persistence**: treat the server as **in-memory** for production until RDB/AOF work is finished.
+- **Compatibility**: Redis clients work for many commands; do not assume identical semantics to Redis 7.x for every command.
+- **Tests**: run `cargo test --all-features` (and add crate/integration tests as they land); today the binary crate contributes no tests.
 
 ---
 
@@ -318,13 +333,13 @@ RedVector is built on two core components:
 Contributions are welcome! See our [Architecture Decision Records](docs/adr/) for design context.
 
 ```bash
-# Run tests
+# Run tests (expand coverage over time)
 cargo test --all-features
 
-# Build with all features
+# Build with all features (Redis + FT.* + REST + gRPC)
 cargo build --release --features full
 
-# Run
+# Run (optional config file as first arg)
 ./target/release/redvector
 ```
 
@@ -344,7 +359,7 @@ We are grateful to the maintainers and contributors of these projects for their 
 
 ## 📄 License
 
-Copyright (c) 2025, Rafael Escrich
+Copyright (c) 2025–2026, Rafael Escrich
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 

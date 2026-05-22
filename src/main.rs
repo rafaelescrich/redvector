@@ -27,7 +27,8 @@ async fn main() {
 fn run_redis_only() {
     let mut config = Config::new(Logger::new(Level::Notice));
     if let Some(f) = args().nth(1) {
-        if config.parsefile(f).is_err() {
+        if let Err(e) = config.parsefile(f.clone()) {
+            eprintln!("Fatal: failed to parse config '{}': {:?}", f, e);
             exit(1);
         }
     }

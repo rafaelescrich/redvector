@@ -4728,7 +4728,7 @@ fn command_properties(command_name: &str) -> CommandProperties {
         #[cfg(feature = "vector-search")]
         "ft.info" => (2, READONLY, 0, 0, 0),
         #[cfg(feature = "vector-search")]
-        "ft.drop" => (-2, WRITE, 0, 0, 0),
+        "ft.drop" | "ft.dropindex" => (-2, WRITE, 0, 0, 0),
         #[cfg(feature = "vector-search")]
         "ft.add" => (-5, WRITE, 0, 0, 0),
         #[cfg(feature = "vector-search")]
@@ -5047,7 +5047,7 @@ fn execute_command(
         #[cfg(feature = "vector-search")]
         "ft.info" => ft_info(parser, db, dbindex),
         #[cfg(feature = "vector-search")]
-        "ft.drop" => ft_drop(parser, db, dbindex),
+        "ft.drop" | "ft.dropindex" => ft_drop(parser, db, dbindex),
         #[cfg(feature = "vector-search")]
         "ft.add" => ft_add(parser, db, dbindex),
         #[cfg(feature = "vector-search")]
@@ -5060,7 +5060,7 @@ fn execute_command(
                 "create" => ft_create(parser, db, dbindex),
                 "search" => ft_search(parser, db, dbindex),
                 "info" => ft_info(parser, db, dbindex),
-                "drop" => ft_drop(parser, db, dbindex),
+                "drop" | "dropindex" => ft_drop(parser, db, dbindex),
                 "add" => ft_add(parser, db, dbindex),
                 "del" => ft_del(parser, db, dbindex),
                 _ => Response::Error(format!("ERR unknown FT subcommand \"{}\"", subcmd)),

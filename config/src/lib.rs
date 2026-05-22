@@ -66,6 +66,7 @@ pub struct Config {
     pub zset_max_ziplist_entries: usize,
     pub zset_max_ziplist_value: usize,
     pub notify_keyspace_events: String,
+    pub storage_mode: String,
 }
 
 #[derive(Debug)]
@@ -152,6 +153,7 @@ impl Config {
             zset_max_ziplist_entries: 128,
             zset_max_ziplist_value: 64,
             notify_keyspace_events: "".to_owned(), // Empty = disabled
+            storage_mode: "in-memory".to_owned(),
         }
     }
 
@@ -252,7 +254,7 @@ impl Config {
                 b"aof-load-truncated" => self.aof_load_truncated = read_bool(args)?,
                 b"dbfilename" => self.dbfilename = read_string(args)?.to_owned(),
                 b"save" => {
-                    if args.len() == 4 {
+                    if args.len() == 3 {
                         let seconds_str = from_utf8(&*args[1])?.to_owned();
                         let changes_str = from_utf8(&*args[2])?.to_owned();
                         let seconds: u64 = seconds_str.parse().map_err(|_| ConfigError::InvalidParameter)?;
@@ -296,6 +298,13 @@ impl Config {
                 b"zset-max-ziplist-entries" => self.zset_max_ziplist_entries = read_parse(args)?,
                 b"zset-max-ziplist-value" => self.zset_max_ziplist_value = read_parse(args)?,
                 b"notify-keyspace-events" => self.notify_keyspace_events = read_string(args)?.to_owned(),
+                b"storage-mode" => {
+                    let val = read_string(args)?;
+                    match &*val.to_ascii_lowercase() {
+                        "in-memory" | "disk" => self.storage_mode = val,
+                        _ => return Err(ConfigError::InvalidParameter),
+                    }
+                }
                 b"include" => {
                     if args.len() != 2 {
                         return Err(ConfigError::InvalidFormat);

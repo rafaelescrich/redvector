@@ -328,7 +328,7 @@ pub fn ft_search(parser: &mut ParsedCommand, _db: &Database, dbindex: usize) -> 
                 if let Ok(query_vector) = vector_result {
                     if let Some(ref vec_idx) = ext_spec.vector_index {
                         let vec_index = vec_idx.lock().unwrap();
-                        if let Ok(results) = vec_index.search(&query_vector, 10) {
+                        if let Ok(results) = vec_index.search(&query_vector, 10, None) {
                             let mut response_vec = Vec::new();
                             response_vec.push(Response::Integer(results.len() as i64));
                             

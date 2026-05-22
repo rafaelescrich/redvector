@@ -8,26 +8,20 @@ use parser::ParsedCommand;
 use response::Response;
 #[cfg(feature = "vector-search")]
 use database::Database;
-#[cfg(all(feature = "vector-search", feature = "hnsw-backend"))]
-use database::vector_index::{HnswVectorIndex, VectorMetric};
-#[cfg(all(feature = "vector-search", not(feature = "hnsw-backend")))]
-use redisearch_platform_core::vector_index::{VectorIndex, VectorMetric};
+#[cfg(feature = "vector-search")]
+use redisearch_platform_core::vector_index::VectorMetric;
+#[cfg(feature = "vector-search")]
+use redisearch_platform_core::persistent_index::PersistentVectorIndex;
 #[cfg(feature = "vector-search")]
 use std::sync::{Arc, Mutex};
 #[cfg(feature = "vector-search")]
 use std::collections::HashMap;
 
 // Global index storage (indexed by database index and index name)
-// Format: (dbindex, index_name) -> VectorIndex
-#[cfg(all(feature = "vector-search", feature = "hnsw-backend"))]
+// Format: (dbindex, index_name) -> PersistentVectorIndex
+#[cfg(feature = "vector-search")]
 lazy_static::lazy_static! {
-    static ref INDEX_STORAGE: Arc<Mutex<HashMap<(usize, String), Arc<Mutex<HnswVectorIndex>>>>> = 
-        Arc::new(Mutex::new(HashMap::new()));
-}
-
-#[cfg(all(feature = "vector-search", not(feature = "hnsw-backend")))]
-lazy_static::lazy_static! {
-    static ref INDEX_STORAGE: Arc<Mutex<HashMap<(usize, String), Arc<Mutex<VectorIndex>>>>> = 
+    static ref INDEX_STORAGE: Arc<Mutex<HashMap<(usize, String), Arc<Mutex<PersistentVectorIndex>>>>> = 
         Arc::new(Mutex::new(HashMap::new()));
 }
 
@@ -74,31 +68,30 @@ fn index_meta_key(index_name: &str) -> Vec<u8> {
 }
 
 /// Get index from storage
-#[cfg(all(feature = "vector-search", feature = "hnsw-backend"))]
-fn get_index(dbindex: usize, index_name: &str) -> Option<Arc<Mutex<HnswVectorIndex>>> {
-    let storage = INDEX_STORAGE.lock().unwrap();
-    storage.get(&(dbindex, index_name.to_string())).cloned()
-}
-
-#[cfg(all(feature = "vector-search", not(feature = "hnsw-backend")))]
-fn get_index(dbindex: usize, index_name: &str) -> Option<Arc<Mutex<VectorIndex>>> {
+#[cfg(feature = "vector-search")]
+fn get_index(dbindex: usize, index_name: &str) -> Option<Arc<Mutex<PersistentVectorIndex>>> {
     let storage = INDEX_STORAGE.lock().unwrap();
     storage.get(&(dbindex, index_name.to_string())).cloned()
 }
 
 /// Create and store index
-#[cfg(all(feature = "vector-search", feature = "hnsw-backend"))]
-fn create_index(dbindex: usize, index_name: String, dimension: usize, metric: VectorMetric) -> Arc<Mutex<HnswVectorIndex>> {
-    // Use recommended HNSW parameters: m=16, ef_construction=200 for 98%+ recall
-    let index = Arc::new(Mutex::new(HnswVectorIndex::new(dimension, metric, Some(16), Some(200))));
-    let mut storage = INDEX_STORAGE.lock().unwrap();
-    storage.insert((dbindex, index_name), index.clone());
-    index
-}
-
-#[cfg(all(feature = "vector-search", not(feature = "hnsw-backend")))]
-fn create_index(dbindex: usize, index_name: String, dimension: usize, metric: VectorMetric) -> Arc<Mutex<VectorIndex>> {
-    let index = Arc::new(Mutex::new(VectorIndex::new(dimension, metric)));
+#[cfg(feature = "vector-search")]
+fn create_index(dbindex: usize, index_name: String, dimension: usize, metric: VectorMetric, db: &Database) -> Arc<Mutex<PersistentVectorIndex>> {
+    let storage_path = if db.config.storage_mode == "disk" {
+        let path = std::path::Path::new(&db.config.dir).join(format!("{}_{}.redb", index_name, dbindex));
+        Some(path)
+    } else {
+        None
+    };
+    
+    let index = Arc::new(Mutex::new(PersistentVectorIndex::new(
+        index_name.clone(),
+        dimension,
+        metric,
+        storage_path.as_deref(),
+        1000, // Snapshot every 1000 vectors
+    ).expect("Failed to create persistent index")));
+    
     let mut storage = INDEX_STORAGE.lock().unwrap();
     storage.insert((dbindex, index_name), index.clone());
     index
@@ -166,7 +159,7 @@ pub fn ft_create(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) 
     
     // Create vector index if vector field found, otherwise just store metadata
     if has_vector {
-        let _index = create_index(dbindex, index_name.to_string(), dimension, VectorMetric::Cosine);
+        let _index = create_index(dbindex, index_name.to_string(), dimension, VectorMetric::Cosine, db);
     }
     
     // Store index metadata in Redis
@@ -215,41 +208,20 @@ pub fn ft_search(parser: &mut ParsedCommand, db: &Database, dbindex: usize) -> R
             .collect();
         
         if let Ok(query_vector) = vector {
-            #[cfg(feature = "hnsw-backend")]
-            {
-                let index = index_arc.lock().unwrap();
-                if let Ok(results) = index.search(&query_vector, 10, None) {
-                    let mut response = Vec::new();
-                    response.push(Response::Integer(results.len() as i64));
-                    
-                    for (doc_id, score) in results {
-                        let mut doc = Vec::new();
-                        doc.push(Response::Data(format!("{}", doc_id).into_bytes()));
-                        doc.push(Response::Data(b"score".to_vec()));
-                        doc.push(Response::Data(format!("{:.6}", score).into_bytes()));
-                        response.push(Response::Array(doc));
-                    }
-                    
-                    return Response::Array(response);
+            let index = index_arc.lock().unwrap();
+            if let Ok(results) = index.search(&query_vector, 10) {
+                let mut response = Vec::new();
+                response.push(Response::Integer(results.len() as i64));
+                
+                for (doc_id, score) in results {
+                    let mut doc = Vec::new();
+                    doc.push(Response::Data(format!("{}", doc_id).into_bytes()));
+                    doc.push(Response::Data(b"score".to_vec()));
+                    doc.push(Response::Data(format!("{:.6}", score).into_bytes()));
+                    response.push(Response::Array(doc));
                 }
-            }
-            #[cfg(not(feature = "hnsw-backend"))]
-            {
-                let index = index_arc.lock().unwrap();
-                if let Ok(results) = index.search(&query_vector, 10, None) {
-                    let mut response = Vec::new();
-                    response.push(Response::Integer(results.len() as i64));
-                    
-                    for (doc_id, score) in results {
-                        let mut doc = Vec::new();
-                        doc.push(Response::Data(format!("{}", doc_id).into_bytes()));
-                        doc.push(Response::Data(b"score".to_vec()));
-                        doc.push(Response::Data(format!("{}", score).into_bytes()));
-                        response.push(Response::Array(doc));
-                    }
-                    
-                    return Response::Array(response);
-                }
+                
+                return Response::Array(response);
             }
         }
     }
@@ -279,16 +251,8 @@ pub fn ft_info(parser: &mut ParsedCommand, db: &Database, dbindex: usize) -> Res
     
     // Get index stats if available
     let num_docs = if let Some(index_arc) = get_index(dbindex, index_name) {
-        #[cfg(feature = "hnsw-backend")]
-        {
-            let index = index_arc.lock().unwrap();
-            index.len()
-        }
-        #[cfg(not(feature = "hnsw-backend"))]
-        {
-            let index = index_arc.lock().unwrap();
-            index.len()
-        }
+        let index = index_arc.lock().unwrap();
+        index.len()
     } else {
         0
     };
@@ -393,7 +357,7 @@ pub fn ft_add(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> 
         let index_arc = get_index(dbindex, index_name)
             .unwrap_or_else(|| {
                 // Create default index if not found
-                create_index(dbindex, index_name.to_string(), query_vector.len(), VectorMetric::Cosine)
+                create_index(dbindex, index_name.to_string(), query_vector.len(), VectorMetric::Cosine, db)
             });
         
         let mut index = index_arc.lock().unwrap();

@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+# Use image built into the cluster node daemon (minikube / Docker Desktop):
+#   eval $(minikube docker-env)   # if using minikube
+#   docker build -t redvector:latest -f Dockerfile ../..
+images:
+  - name: redvector
+    newName: redvector
+    newTag: latest
+
+patches:
+  - path: image-pull-policy.yaml

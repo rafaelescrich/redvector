@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redvector
+spec:
+  serviceName: redvector
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redvector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redvector
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+      containers:
+        - name: redvector
+          image: redvector:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - /etc/redvector/redvector.conf
+          ports:
+            - name: redis
+              containerPort: 6379
+            - name: http
+              containerPort: 8888
+            - name: grpc
+              containerPort: 50051
+          env:
+            - name: RUST_LOG
+              value: info
+          volumeMounts:
+            - name: data
+              mountPath: /data/redvector
+            - name: config
+              mountPath: /etc/redvector/redvector.conf
+              subPath: redvector.conf
+              readOnly: true
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: config
+          configMap:
+            name: redvector-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi

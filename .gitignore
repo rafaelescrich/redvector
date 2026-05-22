@@ -36,3 +36,7 @@ ISSUE_SUMMARY.md
 PRODUCTION_READINESS_ANALYSIS.md
 TEST_STATUS.md
 REDISEARCH_INTEGRATION.md
+
+# Local deploy helper (may contain image URI)
+deploy/.last-image.env
+data/

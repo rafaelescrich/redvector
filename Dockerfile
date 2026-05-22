@@ -1,6 +1,7 @@
 # Multi-stage Dockerfile for RedVector - Redis-compatible Vector Database
 # Stage 1: Build
-FROM rust:1.83-slim AS builder
+# 1.85+ required: transitive crates (e.g. getrandom 0.4) use edition2024
+FROM rust:1.85-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \

@@ -4,7 +4,7 @@
 //! with LRU caching for performance.
 
 use anyhow::{Context, Result};
-use redb::{Database, ReadableTable, TableDefinition};
+use redb::{Database, ReadableTable, TableDefinition, backends::InMemoryBackend};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use bincode;
@@ -43,12 +43,29 @@ impl RedbVectorStorage {
     pub fn open(path: &Path) -> Result<Self> {
         Self::open_with_cache_size(path, 10_000)
     }
+
+    /// Open an in-memory redb database
+    pub fn open_in_memory() -> Result<Self> {
+        Self::open_in_memory_with_cache_size(10_000)
+    }
     
     /// Open with custom cache size
     pub fn open_with_cache_size(path: &Path, cache_size: usize) -> Result<Self> {
         let db = Database::create(path)
             .context("Failed to create redb database")?;
-        
+        Self::init_with_db(db, cache_size)
+    }
+
+    /// Open in-memory with custom cache size
+    pub fn open_in_memory_with_cache_size(cache_size: usize) -> Result<Self> {
+        let backend = InMemoryBackend::new();
+        let db = Database::builder()
+            .create_with_backend(backend)
+            .context("Failed to create in-memory redb database")?;
+        Self::init_with_db(db, cache_size)
+    }
+
+    fn init_with_db(db: Database, cache_size: usize) -> Result<Self> {
         // Initialize tables
         let write_txn = db.begin_write()
             .context("Failed to begin write transaction")?;

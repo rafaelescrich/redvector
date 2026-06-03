@@ -17,6 +17,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tower_http::cors::CorsLayer;
 use database::Database;
+use parser::parse_vector_csv;
 
 #[cfg(feature = "hnsw-backend")]
 use database::vector_index::{HnswVectorIndex, VectorMetric};
@@ -324,10 +325,7 @@ async fn search_points(
     match indexes.get(&collection_name) {
         Some(index_arc) => {
             // Parse query vector
-            let query_vector: Result<Vec<f32>, _> = params.vector
-                .split(',')
-                .map(|s| s.trim().parse::<f32>())
-                .collect();
+            let query_vector = parse_vector_csv(&params.vector);
             
             match query_vector {
                 Ok(qv) => {

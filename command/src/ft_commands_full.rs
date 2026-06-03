@@ -3,7 +3,7 @@
 //! This module provides complete FT.* command implementations using the full
 //! Redisearch implementation from RediSearch/rust-port.
 
-use parser::ParsedCommand;
+use parser::{parse_vector_csv, ParsedCommand};
 use response::Response;
 use database::Database;
 use std::sync::{Arc, Mutex};
@@ -243,10 +243,7 @@ pub fn ft_add(parser: &mut ParsedCommand, _db: &mut Database, dbindex: usize) ->
             // Check if this is a vector field
             if field_name.to_lowercase().contains("vector") || field_value.contains(',') {
                 // Try to parse as vector
-                let vec_result: Result<Vec<f32>, _> = field_value
-                    .split(',')
-                    .map(|s| s.trim().parse::<f32>())
-                    .collect();
+                let vec_result = parse_vector_csv(field_value);
                 if let Ok(v) = vec_result {
                     vector_value = Some(v);
                 }
@@ -320,10 +317,7 @@ pub fn ft_search(parser: &mut ParsedCommand, _db: &Database, dbindex: usize) -> 
         Err(_) => {
             // For vector search, try parsing as vector
             if query.contains(',') {
-                let vector_result: Result<Vec<f32>, _> = query
-                    .split(',')
-                    .map(|s| s.trim().parse::<f32>())
-                    .collect();
+                let vector_result = parse_vector_csv(query);
                 
                 if let Ok(query_vector) = vector_result {
                     if let Some(ref vec_idx) = ext_spec.vector_index {

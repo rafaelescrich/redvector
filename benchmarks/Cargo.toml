@@ -16,6 +16,10 @@ name = "simd_bench"
 path = "simd_bench.rs"
 
 [[bin]]
+name = "vector_csv_bench"
+path = "vector_csv_bench.rs"
+
+[[bin]]
 name = "pq_bench"
 path = "pq_bench.rs"
 
@@ -39,6 +43,7 @@ reqwest = { version = "0.11", features = ["blocking", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 database = { path = "../database" }
+parser = { path = "../parser", features = ["fast-vector-csv"] }
 redisearch-platform-core = { path = "../redisearch-platform-core" }
 parquet = "58.3.0"
 zip = "8.6.0"

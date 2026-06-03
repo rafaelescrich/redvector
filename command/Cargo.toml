@@ -22,3 +22,4 @@ hnsw_rs = { version = "0.1", optional = true }
 default = []
 vector-search = ["redisearch-platform-core", "hnsw_rs", "database/hnsw-backend"]
 hnsw-backend = ["hnsw_rs", "database/hnsw-backend"]
+fast-vector-csv = ["parser/fast-vector-csv"]

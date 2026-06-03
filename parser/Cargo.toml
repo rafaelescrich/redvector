@@ -3,5 +3,12 @@ name = "parser"
 version = "0.1.0"
 authors = ["Rafael Escrich <rafaelescrich@gmail.com>"]
 
+[features]
+default = []
+fast-vector-csv = ["dep:memchr"]
+
 [dependencies.util]
 path = "../util"
+
+[dependencies]
+memchr = { version = "2", optional = true }

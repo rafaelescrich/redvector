@@ -3,7 +3,7 @@
 //! This module provides FT.* command implementations using HNSW for vector search.
 
 #[cfg(feature = "vector-search")]
-use parser::ParsedCommand;
+use parser::{parse_vector_csv, ParsedCommand};
 #[cfg(feature = "vector-search")]
 use response::Response;
 #[cfg(feature = "vector-search")]
@@ -135,9 +135,18 @@ pub fn ft_create(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) 
                 let mut j = i + 1;
                 while j + 1 < parser.argv.len() {
                     if let (Ok(_field_name), Ok(field_type)) = (parser.get_str(j), parser.get_str(j + 1)) {
-                        if field_type.to_uppercase().starts_with("VECTOR") {
+                        if field_type.to_uppercase() == "VECTOR" && j + 2 < parser.argv.len() {
                             has_vector = true;
-                            // Try to parse dimension from VECTOR(dim)
+                            // Parse dimension from the next argument
+                            if let Ok(dim_str) = parser.get_str(j + 2) {
+                                if let Ok(dim) = dim_str.parse::<usize>() {
+                                    dimension = dim;
+                                }
+                            }
+                            j += 3; // field_name VECTOR dim
+                        } else if field_type.to_uppercase().starts_with("VECTOR") {
+                            has_vector = true;
+                            // Try to parse dimension from VECTOR(dim) syntax
                             if let Some(start) = field_type.find('(') {
                                 if let Some(end) = field_type.find(')') {
                                     if let Ok(dim) = field_type[start+1..end].parse::<usize>() {
@@ -145,8 +154,10 @@ pub fn ft_create(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) 
                                     }
                                 }
                             }
+                            j += 2;
+                        } else {
+                            j += 2;
                         }
-                        j += 2;
                     } else {
                         break;
                     }
@@ -202,10 +213,7 @@ pub fn ft_search(parser: &mut ParsedCommand, db: &Database, dbindex: usize) -> R
     // Try to get vector index
     if let Some(index_arc) = get_index(dbindex, index_name) {
         // Parse query as vector (simplified - expect comma-separated floats)
-        let vector: Result<Vec<f32>, _> = query
-            .split(',')
-            .map(|s| s.trim().parse::<f32>())
-            .collect();
+        let vector = parse_vector_csv(query);
         
         if let Ok(query_vector) = vector {
             let index = index_arc.lock().unwrap();
@@ -332,10 +340,7 @@ pub fn ft_add(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> 
                     if let (Ok(fname), Ok(fval)) = (parser.get_str(j), parser.get_str(j + 1)) {
                         if fname.to_lowercase().contains("vector") {
                             // Parse vector (comma-separated floats)
-                            let vec_result: Result<Vec<f32>, _> = fval
-                                .split(',')
-                                .map(|s| s.trim().parse::<f32>())
-                                .collect();
+                            let vec_result = parse_vector_csv(fval);
                             if let Ok(v) = vec_result {
                                 vector = Some(v);
                             }

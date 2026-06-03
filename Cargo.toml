@@ -53,6 +53,7 @@ tonic-build = { version = "0.11", optional = true }
 default = []
 vector-search = ["command/vector-search"]
 hnsw-backend = ["database/hnsw-backend", "command/hnsw-backend"]
+fast-vector-csv = ["parser/fast-vector-csv", "command/fast-vector-csv"]
 # Integrated API server (REST + gRPC in same binary)
 api-server = [
     "dep:axum", "dep:tokio", "dep:tower", "dep:tower-http", 

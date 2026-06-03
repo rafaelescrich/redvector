@@ -1,4 +1,6 @@
 extern crate util;
+#[cfg(feature = "fast-vector-csv")]
+extern crate memchr;
 
 use std::collections::Bound;
 use std::error::Error;
@@ -31,6 +33,75 @@ pub struct ParsedCommand<'a> {
 pub struct OwnedParsedCommand {
     data: Vec<u8>,
     pub argv: Vec<Argument>,
+}
+
+/// Parse a comma-separated f32 vector.
+///
+/// The default implementation keeps the historical `str::split` behavior. When
+/// `fast-vector-csv` is enabled, delimiter scanning switches to `memchr`, which
+/// uses optimized byte search implementations on supported targets.
+pub fn parse_vector_csv(input: &str) -> Result<Vec<f32>, ParseError> {
+    #[cfg(feature = "fast-vector-csv")]
+    {
+        parse_vector_csv_fast(input)
+    }
+
+    #[cfg(not(feature = "fast-vector-csv"))]
+    {
+        parse_vector_csv_baseline(input)
+    }
+}
+
+/// Baseline parser used for feature comparisons and benchmarks.
+pub fn parse_vector_csv_baseline(input: &str) -> Result<Vec<f32>, ParseError> {
+    input
+        .split(',')
+        .map(|s| Ok(s.trim().parse::<f32>()?))
+        .collect()
+}
+
+/// Fast parser used when `fast-vector-csv` is enabled.
+#[cfg(feature = "fast-vector-csv")]
+pub fn parse_vector_csv_fast(input: &str) -> Result<Vec<f32>, ParseError> {
+    let bytes = input.as_bytes();
+    let mut values = Vec::new();
+    let mut start = 0;
+
+    for comma in memchr::memchr_iter(b',', bytes) {
+        values.push(parse_vector_csv_field(&bytes[start..comma])?);
+        start = comma + 1;
+    }
+
+    values.push(parse_vector_csv_field(&bytes[start..])?);
+    Ok(values)
+}
+
+#[cfg(feature = "fast-vector-csv")]
+fn parse_vector_csv_field(field: &[u8]) -> Result<f32, ParseError> {
+    let field = trim_ascii_whitespace(field);
+    let value = from_utf8(field)?;
+    Ok(value.parse::<f32>()?)
+}
+
+#[cfg(feature = "fast-vector-csv")]
+fn trim_ascii_whitespace(mut bytes: &[u8]) -> &[u8] {
+    while let Some((first, rest)) = bytes.split_first() {
+        if first.is_ascii_whitespace() {
+            bytes = rest;
+        } else {
+            break;
+        }
+    }
+
+    while let Some((last, rest)) = bytes.split_last() {
+        if last.is_ascii_whitespace() {
+            bytes = rest;
+        } else {
+            break;
+        }
+    }
+
+    bytes
 }
 
 /// Error parsing
@@ -471,7 +542,31 @@ impl fmt::Debug for Parser {
 
 #[cfg(test)]
 mod test_parser {
-    use super::{parse, ParseError, Parser};
+    use super::{parse, parse_vector_csv_baseline, ParseError, Parser};
+
+    #[test]
+    fn parse_vector_csv_baseline_valid() {
+        let values = parse_vector_csv_baseline("1.0, -2.5,3e2").unwrap();
+        assert_eq!(values, vec![1.0, -2.5, 300.0]);
+    }
+
+    #[test]
+    fn parse_vector_csv_baseline_rejects_empty_fields() {
+        assert_eq!(
+            parse_vector_csv_baseline("1.0,,2.0").unwrap_err(),
+            ParseError::InvalidArgument
+        );
+    }
+
+    #[cfg(feature = "fast-vector-csv")]
+    #[test]
+    fn parse_vector_csv_fast_matches_baseline() {
+        let input = " 0.1, -2.5,3e2,+4.25,5 ";
+        assert_eq!(
+            super::parse_vector_csv_fast(input).unwrap(),
+            parse_vector_csv_baseline(input).unwrap()
+        );
+    }
 
     #[test]
     fn parse_valid() {

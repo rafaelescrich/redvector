@@ -655,6 +655,7 @@ fn dbtype(parser: &mut ParsedCommand, db: &Database, dbindex: usize) -> Response
         Some(Value::Set(_)) => Response::Data("set".to_owned().into_bytes()),
         Some(Value::SortedSet(_)) => Response::Data("zset".to_owned().into_bytes()),
         Some(Value::Hash(_)) => Response::Data("hash".to_owned().into_bytes()),
+        Some(Value::Bloom(_)) => Response::Data("MBbloom--".to_owned().into_bytes()),
         None => Response::Data("none".to_owned().into_bytes()),
     }
 }
@@ -1016,6 +1017,100 @@ fn pfmerge(parser: &ParsedCommand, db: &mut Database, dbindex: usize) -> Respons
     }
     db.key_updated(dbindex, &key);
     r
+}
+
+fn bf_reserve(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Response {
+    validate_arguments_exact!(parser, 4);
+    let key = try_validate!(parser.get_vec(1), "ERR invalid key");
+    let error_rate = try_validate!(parser.get_f64(2), "ERR invalid error rate");
+    let capacity = try_validate!(parser.get_i64(3), "ERR invalid capacity");
+
+    if capacity <= 0 {
+        return Response::Error("ERR invalid bloom filter parameters".to_owned());
+    }
+
+    match db
+        .get_or_create(dbindex, &key)
+        .bf_reserve(error_rate, capacity as usize)
+    {
+        Ok(()) => {
+            db.key_updated(dbindex, &key);
+            Response::Status("OK".to_owned())
+        }
+        Err(e) => Response::Error(e.to_string()),
+    }
+}
+
+fn bf_add(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Response {
+    validate_arguments_exact!(parser, 3);
+    let key = try_validate!(parser.get_vec(1), "ERR invalid key");
+    let item = try_validate!(parser.get_slice(2), "ERR invalid item").to_vec();
+
+    match db.get_or_create(dbindex, &key).bf_add(&item) {
+        Ok(added) => {
+            db.key_updated(dbindex, &key);
+            Response::Integer(if added { 1 } else { 0 })
+        }
+        Err(e) => Response::Error(e.to_string()),
+    }
+}
+
+fn bf_madd(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Response {
+    validate_arguments_gte!(parser, 3);
+    let key = try_validate!(parser.get_vec(1), "ERR invalid key");
+    let mut items = Vec::with_capacity(parser.argv.len() - 2);
+    for i in 2..parser.argv.len() {
+        items.push(try_validate!(parser.get_slice(i), "ERR invalid item").to_vec());
+    }
+
+    let value = db.get_or_create(dbindex, &key);
+    let mut result = Vec::with_capacity(items.len());
+    for item in &items {
+        match value.bf_add(item) {
+            Ok(added) => result.push(Response::Integer(if added { 1 } else { 0 })),
+            Err(e) => return Response::Error(e.to_string()),
+        }
+    }
+
+    db.key_updated(dbindex, &key);
+    Response::Array(result)
+}
+
+fn bf_exists(parser: &mut ParsedCommand, db: &Database, dbindex: usize) -> Response {
+    validate_arguments_exact!(parser, 3);
+    let key = try_validate!(parser.get_vec(1), "ERR invalid key");
+    let item = try_validate!(parser.get_slice(2), "ERR invalid item");
+
+    match db.get(dbindex, &key) {
+        Some(value) => match value.bf_exists(item) {
+            Ok(exists) => Response::Integer(if exists { 1 } else { 0 }),
+            Err(e) => Response::Error(e.to_string()),
+        },
+        None => Response::Integer(0),
+    }
+}
+
+fn bf_mexists(parser: &mut ParsedCommand, db: &Database, dbindex: usize) -> Response {
+    validate_arguments_gte!(parser, 3);
+    let key = try_validate!(parser.get_vec(1), "ERR invalid key");
+    let mut items = Vec::with_capacity(parser.argv.len() - 2);
+    for i in 2..parser.argv.len() {
+        items.push(try_validate!(parser.get_slice(i), "ERR invalid item").to_vec());
+    }
+
+    match db.get(dbindex, &key) {
+        Some(value) => {
+            let mut result = Vec::with_capacity(items.len());
+            for item in &items {
+                match value.bf_exists(item) {
+                    Ok(exists) => result.push(Response::Integer(if exists { 1 } else { 0 })),
+                    Err(e) => return Response::Error(e.to_string()),
+                }
+            }
+            Response::Array(result)
+        }
+        None => Response::Array(items.iter().map(|_| Response::Integer(0)).collect()),
+    }
 }
 
 fn generic_push(
@@ -3081,6 +3176,7 @@ fn object(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Resp
                             ValueHash::ZipList(_) => "ziplist",
                             ValueHash::HashMap(_) => "hashtable",
                         },
+                        Value::Bloom(_) => "bloom",
                         Value::Nil => return Response::Nil,
                     };
                     Response::Data(encoding.to_string().into_bytes())
@@ -4249,7 +4345,8 @@ fn command_cmd(parser: &mut ParsedCommand, _db: &Database) -> Response {
             "ttl", "pttl", "persist", "slaveof", "role", "config", "subscribe", "unsubscribe",
             "psubscribe", "punsubscribe", "publish", "pubsub", "watch", "unwatch", "restore",
             "dump", "object", "client", "time", "bitop", "bitcount", "bitpos", "wait", "command",
-            "pfadd", "pfcount", "pfmerge",
+            "pfadd", "pfcount", "pfmerge", "bf.reserve", "bf.add", "bf.madd", "bf.exists",
+            "bf.mexists",
         ];
         #[cfg(feature = "vector-search")]
         let mut commands = commands;
@@ -4718,6 +4815,11 @@ fn command_properties(command_name: &str) -> CommandProperties {
         "pfadd" => (-2, wmf, 1, 1, 1),
         "pfcount" => (-2, READONLY, 1, -1, 1),
         "pfmerge" => (-2, wm, 1, -1, 1),
+        "bf.reserve" => (4, wmf, 1, 1, 1),
+        "bf.add" => (3, wmf, 1, 1, 1),
+        "bf.madd" => (-3, wmf, 1, 1, 1),
+        "bf.exists" => (3, fr, 1, 1, 1),
+        "bf.mexists" => (-3, fr, 1, 1, 1),
         "pfdebug" => (-3, WRITE, 0, 0, 0),
         "latency" => (-2, ars | ls, 0, 0, 0),
         // RediSearch (FT.*) commands (only when vector-search feature is enabled)
@@ -4771,17 +4873,17 @@ fn execute_command(
     let raw_command = try_opt_validate!(parser.get_str(0), "Invalid command");
     let lower_command = raw_command.to_ascii_lowercase();
     
-    // For FT.* commands, bypass mapped_command to ensure they're allowed
-    // Check both lowercase and original case to handle any edge cases
+    // For module-style dotted commands, bypass mapped_command to ensure they're allowed.
     let is_ft_command = lower_command.starts_with("ft.");
+    let is_bf_command = lower_command.starts_with("bf.");
     
     // Debug logging
     if raw_command.to_uppercase().starts_with("FT.") || lower_command.starts_with("ft.") {
         eprintln!("DEBUG: FT command detected: raw='{}', lower='{}', is_ft={}", raw_command, lower_command, is_ft_command);
     }
     
-    let command_name = if is_ft_command {
-        // FT.* commands - use directly, don't go through mapped_command
+    let command_name = if is_ft_command || is_bf_command {
+        // Module commands - use directly, don't go through mapped_command.
         // Normalize to lowercase for consistency
         &*lower_command
     } else {
@@ -4906,6 +5008,11 @@ fn execute_command(
         "pfadd" => pfadd(parser, db, dbindex),
         "pfcount" => pfcount(parser, db, dbindex),
         "pfmerge" => pfmerge(parser, db, dbindex),
+        "bf.reserve" => bf_reserve(parser, db, dbindex),
+        "bf.add" => bf_add(parser, db, dbindex),
+        "bf.madd" => bf_madd(parser, db, dbindex),
+        "bf.exists" => bf_exists(parser, db, dbindex),
+        "bf.mexists" => bf_mexists(parser, db, dbindex),
         "pfselftest" => pfselftest(parser, db, dbindex),
         "pfdebug" => pfdebug(parser, db, dbindex),
         "exists" => exists(parser, db, dbindex),
@@ -5802,6 +5909,133 @@ mod test_command {
         assert_eq!(
             command(parser!(b"PFADD key 1 2 3 4"), &mut db, &mut Client::mock()).unwrap(),
             Response::Integer(0)
+        );
+    }
+
+    #[test]
+    fn bf_reserve_add_exists_command() {
+        let mut db = Database::new(Config::new(Logger::new(Level::Warning)));
+        assert_eq!(
+            command(
+                parser!(b"BF.RESERVE wallet_bloom 0.01 1000"),
+                &mut db,
+                &mut Client::mock()
+            )
+            .unwrap(),
+            Response::Status("OK".to_owned())
+        );
+        assert_eq!(
+            command(
+                parser!(b"BF.EXISTS wallet_bloom 0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"),
+                &mut db,
+                &mut Client::mock()
+            )
+            .unwrap(),
+            Response::Integer(0)
+        );
+        assert_eq!(
+            command(
+                parser!(b"BF.ADD wallet_bloom 0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"),
+                &mut db,
+                &mut Client::mock()
+            )
+            .unwrap(),
+            Response::Integer(1)
+        );
+        assert_eq!(
+            command(
+                parser!(b"BF.ADD wallet_bloom 0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"),
+                &mut db,
+                &mut Client::mock()
+            )
+            .unwrap(),
+            Response::Integer(0)
+        );
+        assert_eq!(
+            command(
+                parser!(b"BF.EXISTS wallet_bloom 0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"),
+                &mut db,
+                &mut Client::mock()
+            )
+            .unwrap(),
+            Response::Integer(1)
+        );
+    }
+
+    #[test]
+    fn bf_madd_and_mexists_command() {
+        let mut db = Database::new(Config::new(Logger::new(Level::Warning)));
+        assert_eq!(
+            command(
+                parser!(b"BF.MADD wallet_bloom evm_address tron_address evm_address"),
+                &mut db,
+                &mut Client::mock()
+            )
+            .unwrap(),
+            Response::Array(vec![
+                Response::Integer(1),
+                Response::Integer(1),
+                Response::Integer(0),
+            ])
+        );
+        assert_eq!(
+            command(
+                parser!(b"BF.MEXISTS wallet_bloom evm_address missing tron_address"),
+                &mut db,
+                &mut Client::mock()
+            )
+            .unwrap(),
+            Response::Array(vec![
+                Response::Integer(1),
+                Response::Integer(0),
+                Response::Integer(1),
+            ])
+        );
+    }
+
+    #[test]
+    fn bf_exists_missing_key_returns_zero() {
+        let mut db = Database::new(Config::new(Logger::new(Level::Warning)));
+        assert_eq!(
+            command(
+                parser!(b"BF.EXISTS missing_bloom value"),
+                &mut db,
+                &mut Client::mock()
+            )
+            .unwrap(),
+            Response::Integer(0)
+        );
+        assert_eq!(
+            command(
+                parser!(b"BF.MEXISTS missing_bloom a b"),
+                &mut db,
+                &mut Client::mock()
+            )
+            .unwrap(),
+            Response::Array(vec![Response::Integer(0), Response::Integer(0)])
+        );
+    }
+
+    #[test]
+    fn bf_wrong_type_and_existing_key_errors() {
+        let mut db = Database::new(Config::new(Logger::new(Level::Warning)));
+        assert_eq!(
+            command(parser!(b"SET key value"), &mut db, &mut Client::mock()).unwrap(),
+            Response::Status("OK".to_owned())
+        );
+        assert!(
+            command(parser!(b"BF.ADD key value"), &mut db, &mut Client::mock())
+                .unwrap()
+                .is_error()
+        );
+        assert!(
+            command(
+                parser!(b"BF.RESERVE key 0.01 1000"),
+                &mut db,
+                &mut Client::mock()
+            )
+            .unwrap()
+            .is_error()
         );
     }
 

@@ -3,6 +3,7 @@ extern crate config;
 #[macro_use(log)]
 extern crate logger;
 extern crate crc64;
+extern crate fastbloom;
 extern crate parser;
 extern crate persistence;
 extern crate rand;
@@ -16,6 +17,7 @@ extern crate util;
 extern crate hnsw_rs;
 
 pub mod dbutil;
+pub mod bloom;
 pub mod error;
 pub mod hash;
 pub mod list;
@@ -47,6 +49,7 @@ use response::Response;
 use util::{get_random_hex_chars, glob_match, mstime};
 
 use error::OperationError;
+use bloom::ValueBloom;
 use hash::ValueHash;
 use list::ValueList;
 use rdbutil::encode_u64_to_slice_u8;
@@ -83,6 +86,7 @@ pub enum Value {
     Set(ValueSet),
     SortedSet(ValueSortedSet),
     Hash(ValueHash),
+    Bloom(ValueBloom),
 }
 
 /// Events relevant for clients in pubsub mode
@@ -259,6 +263,13 @@ impl Value {
     pub fn is_hash(&self) -> bool {
         match self {
             Value::Hash(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_bloom(&self) -> bool {
+        match self {
+            Value::Bloom(_) => true,
             _ => false,
         }
     }
@@ -575,6 +586,37 @@ impl Value {
         match self {
             Value::String(value) => value.pfmerge(values_string),
             _ => panic!("Expected value to be a string"),
+        }
+    }
+
+    pub fn bf_reserve(&mut self, error_rate: f64, capacity: usize) -> Result<(), OperationError> {
+        match self {
+            Value::Nil => {
+                *self = Value::Bloom(ValueBloom::new(error_rate, capacity)?);
+                Ok(())
+            }
+            _ => Err(OperationError::ValueError("ERR item exists".to_owned())),
+        }
+    }
+
+    pub fn bf_add(&mut self, item: &[u8]) -> Result<bool, OperationError> {
+        match self {
+            Value::Nil => *self = Value::Bloom(ValueBloom::default_filter()),
+            Value::Bloom(_) => {}
+            _ => return Err(OperationError::WrongTypeError),
+        };
+
+        match self {
+            Value::Bloom(value) => Ok(value.add(item)),
+            _ => panic!("Expected value to be a bloom filter"),
+        }
+    }
+
+    pub fn bf_exists(&self, item: &[u8]) -> Result<bool, OperationError> {
+        match self {
+            Value::Nil => Ok(false),
+            Value::Bloom(value) => Ok(value.exists(item)),
+            _ => Err(OperationError::WrongTypeError),
         }
     }
 
@@ -1928,6 +1970,11 @@ impl Value {
             Value::Set(s) => s.dump(&mut data)?,
             Value::SortedSet(s) => s.dump(&mut data)?,
             Value::Hash(h) => h.dump(&mut data)?,
+            Value::Bloom(_) => {
+                return Err(OperationError::ValueError(
+                    "ERR DUMP is not supported for bloom filters".to_owned(),
+                ));
+            }
         };
         let crc = crc64(0, &*data);
         encode_u64_to_slice_u8(crc, &mut data).unwrap();
@@ -1944,6 +1991,7 @@ impl Value {
             Value::Set(s) => s.debug_object(),
             Value::SortedSet(s) => s.debug_object(),
             Value::Hash(h) => h.debug_object(),
+            Value::Bloom(b) => b.debug_object(),
         }
     }
 
@@ -1955,6 +2003,7 @@ impl Value {
             Value::Set(s) => s.scard() == 0,
             Value::SortedSet(s) => s.zcard() == 0,
             Value::Hash(h) => h.is_empty(),
+            Value::Bloom(b) => b.insertions() == 0,
         }
     }
 }
@@ -2212,6 +2261,9 @@ impl Database {
                         zl.len() as u64 + 16 // Small overhead for ziplist header
                     }
                 };
+            }
+            Value::Bloom(b) => {
+                size += b.memory_bytes() + 32;
             }
             Value::Nil => size += 0,
         }

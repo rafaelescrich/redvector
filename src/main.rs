@@ -1,6 +1,8 @@
 pub mod release;
 #[cfg(feature = "api-server")]
 pub mod api;
+#[cfg(all(feature = "api-server", feature = "hnsw-backend"))]
+pub mod qdrant_api;
 
 use std::env::args;
 use std::process::exit;
@@ -108,6 +110,14 @@ async fn run_with_api() {
     let api_config = api::ApiConfig::default();
     if let Err(e) = api::start_api_servers(api_db, api_config).await {
         eprintln!("Failed to start API servers: {}", e);
+    }
+
+    // Start the Qdrant-compatible API server (default port 6333, env QDRANT_COMPAT_PORT)
+    #[cfg(feature = "hnsw-backend")]
+    {
+        if let Err(e) = qdrant_api::start_qdrant_server().await {
+            eprintln!("Failed to start Qdrant-compat server: {}", e);
+        }
     }
     
     // Run Redis server in a blocking thread

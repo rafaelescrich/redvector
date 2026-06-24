@@ -88,6 +88,15 @@ Implemented in `src/api.rs` when built with `--features full` (or `api-server`).
 
 Per-point GET/delete routes are **not** exposed yet.
 
+### 🟣 Qdrant-compatible REST API
+
+A separate, drop-in Qdrant-compatible server (verified with the official Python
+`qdrant-client==1.17.0`, e.g. Open WebUI) runs on **port 6333** by default
+(override with `QDRANT_COMPAT_PORT`) when built with `--features full`. Unlike
+real Qdrant it accepts **arbitrary string point IDs** (not just uint/UUID).
+Implemented in `src/qdrant_api.rs`. See [docs/QDRANT_COMPAT.md](docs/QDRANT_COMPAT.md)
+for endpoints, scoring semantics, filtering, and caveats.
+
 ### 🔌 gRPC API
 
 - **VectorService**: High-performance gRPC interface (port 50051)

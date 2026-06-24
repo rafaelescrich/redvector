@@ -1,0 +1,18 @@
+# Arch-agnostic deploy image for RedVector (works on arm64/amd64).
+# Builds with --features full (Redis + native REST + gRPC + Qdrant-compat REST).
+FROM rust:1.85-slim AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libssl-dev ca-certificates protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY . .
+RUN cargo build --release --features full && strip target/release/redvector
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /build/target/release/redvector /usr/local/bin/redvector
+# Redis(6379) native-REST(8888) gRPC(50051) Qdrant-compat(6333)
+EXPOSE 6379 8888 50051 6333
+ENTRYPOINT ["/usr/local/bin/redvector"]

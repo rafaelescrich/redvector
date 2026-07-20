@@ -1,0 +1,30 @@
+# We use Ubuntu 24.04 as the base to guarantee GLIBC >= 2.38 for the ONNX Runtime
+FROM ubuntu:24.04
+
+# Avoid tzdata interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Rust and required C++ toolchains
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust toolchain
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+WORKDIR /app
+
+# Copy the source code
+COPY . .
+
+# Build the networked benchmark
+RUN cargo build --release --manifest-path benchmarks/Cargo.toml --bin edgar_rag_networked
+
+# Run the benchmark as the container entrypoint
+# We will use --network host so it can reach localhost:6379 where the redvector server is running
+CMD ["/app/benchmarks/target/release/edgar_rag_networked"]

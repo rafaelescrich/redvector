@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 crc64 = "0.2"
+fastbloom = { version = "0.17", default-features = false }
 rand = "0.3"
 rehashinghashmap = "0.1"
 skiplist = "0.3"

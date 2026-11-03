@@ -1,0 +1,4 @@
+# Used instead of the root .dockerignore when building .oss-scanner/Dockerfile:
+# the scanner needs tests, docs and configs that the release image excludes.
+target/
+.git/

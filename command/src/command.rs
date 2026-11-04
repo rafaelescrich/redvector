@@ -12,17 +12,17 @@ use std::{
 use bitflags::bitflags;
 
 use compat::{getos, getpid};
-use database::{zset, Database, PubsubEvent, Value};
-use database::zset::ValueSortedSet;
-use database::list::ValueList;
 use database::hash::ValueHash;
+use database::list::ValueList;
+use database::zset::ValueSortedSet;
+use database::{zset, Database, PubsubEvent, Value};
 use parser::{Argument, OwnedParsedCommand, ParsedCommand};
 use response::{Response, ResponseError};
 use util::{mstime, ustime};
 
 // Import FT command handlers (only when vector-search feature is enabled)
 #[cfg(feature = "vector-search")]
-use crate::ft_commands::{ft_create, ft_search, ft_info, ft_drop, ft_add, ft_del};
+use crate::ft_commands::{ft_add, ft_create, ft_del, ft_drop, ft_info, ft_search};
 
 extern crate rand;
 
@@ -321,7 +321,7 @@ fn restore(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Res
     let key = try_validate!(parser.get_vec(1), "Invalid key");
     let _ttl = try_validate!(parser.get_i64(2), "Invalid TTL");
     let _serialized_value = try_validate!(parser.get_vec(3), "Invalid serialized value");
-    
+
     // Check if key exists (unless REPLACE is specified)
     let mut replace = false;
     if parser.argv.len() > 4 {
@@ -332,11 +332,11 @@ fn restore(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Res
             return Response::Error("ERR syntax error".to_owned());
         }
     }
-    
+
     if !replace && db.get(dbindex, &key).is_some() {
         return Response::Error("ERR Target key name is busy.".to_owned());
     }
-    
+
     // TODO: Implement full RDB deserialization
     // For now, return error indicating it's not fully implemented
     // This is a complex operation that requires full RDB format parsing
@@ -346,13 +346,13 @@ fn restore(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Res
 fn sort(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Response {
     validate_arguments_gte!(parser, 2);
     let key = try_validate!(parser.get_vec(1), "Invalid key");
-    
+
     // Get the source value
     let source_value = match db.get(dbindex, &key) {
         Some(v) => v,
         None => return Response::Array(Vec::new()),
     };
-    
+
     // Collect elements based on type
     let mut elements = match source_value {
         Value::List(list) => {
@@ -373,9 +373,13 @@ fn sort(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respon
             };
             skiplist.iter().map(|m| m.get_vec().to_vec()).collect()
         }
-        _ => return Response::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_owned()),
+        _ => {
+            return Response::Error(
+                "WRONGTYPE Operation against a key holding the wrong kind of value".to_owned(),
+            )
+        }
     };
-    
+
     // Parse options
     let mut by_pattern: Option<Vec<u8>> = None;
     let mut get_patterns: Vec<Vec<u8>> = Vec::new();
@@ -384,7 +388,7 @@ fn sort(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respon
     let mut desc = false;
     let mut alpha = false;
     let mut store_key: Option<Vec<u8>> = None;
-    
+
     let mut i = 2;
     while i < parser.argv.len() {
         let option = try_validate!(parser.get_str(i), "Invalid option");
@@ -407,7 +411,8 @@ fn sort(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respon
                 if i + 2 >= parser.argv.len() {
                     return Response::Error("ERR syntax error".to_owned());
                 }
-                limit_offset = Some(try_validate!(parser.get_i64(i + 1), "Invalid offset") as usize);
+                limit_offset =
+                    Some(try_validate!(parser.get_i64(i + 1), "Invalid offset") as usize);
                 limit_count = Some(try_validate!(parser.get_i64(i + 2), "Invalid count") as usize);
                 i += 3;
             }
@@ -433,7 +438,7 @@ fn sort(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respon
             _ => return Response::Error("ERR syntax error".to_owned()),
         }
     }
-    
+
     // Sort elements
     if let Some(ref by_pat) = by_pattern {
         // Sort by external key pattern - replace * with element value
@@ -454,17 +459,35 @@ fn sort(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respon
                     b_key.push(c);
                 }
             }
-            
+
             let a_val = db.get(dbindex, &a_key).and_then(|v| v.get().ok());
             let b_val = db.get(dbindex, &b_key).and_then(|v| v.get().ok());
-            
-            let a_num = a_val.as_ref().and_then(|v| std::str::from_utf8(v).ok().and_then(|s| s.parse::<f64>().ok())).unwrap_or(0.0);
-            let b_num = b_val.as_ref().and_then(|v| std::str::from_utf8(v).ok().and_then(|s| s.parse::<f64>().ok())).unwrap_or(0.0);
-            
+
+            let a_num = a_val
+                .as_ref()
+                .and_then(|v| {
+                    std::str::from_utf8(v)
+                        .ok()
+                        .and_then(|s| s.parse::<f64>().ok())
+                })
+                .unwrap_or(0.0);
+            let b_num = b_val
+                .as_ref()
+                .and_then(|v| {
+                    std::str::from_utf8(v)
+                        .ok()
+                        .and_then(|s| s.parse::<f64>().ok())
+                })
+                .unwrap_or(0.0);
+
             if desc {
-                b_num.partial_cmp(&a_num).unwrap_or(std::cmp::Ordering::Equal)
+                b_num
+                    .partial_cmp(&a_num)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             } else {
-                a_num.partial_cmp(&b_num).unwrap_or(std::cmp::Ordering::Equal)
+                a_num
+                    .partial_cmp(&b_num)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             }
         });
     } else {
@@ -481,17 +504,27 @@ fn sort(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respon
             });
         } else {
             elements.sort_by(|a, b| {
-                let a_num = std::str::from_utf8(a).ok().and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
-                let b_num = std::str::from_utf8(b).ok().and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+                let a_num = std::str::from_utf8(a)
+                    .ok()
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .unwrap_or(0.0);
+                let b_num = std::str::from_utf8(b)
+                    .ok()
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .unwrap_or(0.0);
                 if desc {
-                    b_num.partial_cmp(&a_num).unwrap_or(std::cmp::Ordering::Equal)
+                    b_num
+                        .partial_cmp(&a_num)
+                        .unwrap_or(std::cmp::Ordering::Equal)
                 } else {
-                    a_num.partial_cmp(&b_num).unwrap_or(std::cmp::Ordering::Equal)
+                    a_num
+                        .partial_cmp(&b_num)
+                        .unwrap_or(std::cmp::Ordering::Equal)
                 }
             });
         }
     }
-    
+
     // Apply limit
     let result_elements = if let (Some(offset), Some(count)) = (limit_offset, limit_count) {
         let start = std::cmp::min(offset, elements.len());
@@ -500,7 +533,7 @@ fn sort(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respon
     } else {
         elements
     };
-    
+
     // Apply GET patterns
     let mut final_result = Vec::new();
     if get_patterns.is_empty() {
@@ -534,14 +567,14 @@ fn sort(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respon
             }
         }
     }
-    
+
     // Store result if STORE is specified
     if let Some(ref store) = store_key {
         if final_result.is_empty() {
             db.remove(dbindex, store);
             return Response::Integer(0);
         }
-        
+
         // Convert responses back to Vec<u8> for storage
         let mut list = ValueList::new();
         for resp in &final_result {
@@ -553,7 +586,7 @@ fn sort(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respon
         db.key_updated(dbindex, store);
         return Response::Integer(final_result.len() as i64);
     }
-    
+
     Response::Array(final_result)
 }
 
@@ -1154,7 +1187,7 @@ fn pfdebug(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Res
     validate_arguments_gte!(parser, 3);
     let subcommand = try_validate!(parser.get_str(1), "Invalid subcommand");
     let key = try_validate!(parser.get_vec(2), "Invalid key");
-    
+
     match &*subcommand.to_ascii_lowercase() {
         "encode" => {
             // PFDEBUG ENCODE <key> - Encode a key's HLL representation
@@ -2572,15 +2605,13 @@ fn hsetnx(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Resp
     };
     match el.hexists(field.as_slice()) {
         Ok(true) => Response::Integer(0),
-        Ok(false) => {
-            match el.hset(field, value) {
-                Ok(_) => {
-                    db.key_updated(dbindex, &key);
-                    Response::Integer(1)
-                }
-                Err(err) => Response::Error(err.to_string()),
+        Ok(false) => match el.hset(field, value) {
+            Ok(_) => {
+                db.key_updated(dbindex, &key);
+                Response::Integer(1)
             }
-        }
+            Err(err) => Response::Error(err.to_string()),
+        },
         Err(err) => Response::Error(err.to_string()),
     }
 }
@@ -2750,7 +2781,10 @@ fn hincrby(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Res
     validate_arguments_exact!(parser, 4);
     let key = try_validate!(parser.get_vec(1), "Invalid key");
     let field = try_validate!(parser.get_vec(2), "Invalid field");
-    let increment = try_validate!(parser.get_i64(3), "ERR value is not an integer or out of range");
+    let increment = try_validate!(
+        parser.get_i64(3),
+        "ERR value is not an integer or out of range"
+    );
     let el = db.get_or_create(dbindex, &key);
     match el.hincrby(field, increment) {
         Ok(new_value) => {
@@ -2782,7 +2816,7 @@ fn scan(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respon
     validate!(cursor >= 0, "ERR invalid cursor");
     let mut pattern = None;
     let mut count = 10;
-    
+
     let mut i = 2;
     while i < parser.argv.len() {
         let arg = try_validate!(parser.get_str(i), "syntax error");
@@ -2803,7 +2837,7 @@ fn scan(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respon
             _ => return Response::Error("syntax error".to_owned()),
         }
     }
-    
+
     let (next_cursor, keys) = db.scan(dbindex, cursor as usize, pattern.as_deref(), count);
     let result = vec![
         Response::Data(next_cursor.to_string().into_bytes()),
@@ -2819,7 +2853,7 @@ fn sscan(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
     validate!(cursor >= 0, "ERR invalid cursor");
     let mut pattern = None;
     let mut count = 10;
-    
+
     let mut i = 3;
     while i < parser.argv.len() {
         let arg = try_validate!(parser.get_str(i), "syntax error");
@@ -2840,15 +2874,17 @@ fn sscan(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
             _ => return Response::Error("syntax error".to_owned()),
         }
     }
-    
+
     let el = match db.get(dbindex, &key) {
         Some(e) => e,
-        None => return Response::Array(vec![
-            Response::Data(b"0".to_vec()),
-            Response::Array(Vec::new()),
-        ]),
+        None => {
+            return Response::Array(vec![
+                Response::Data(b"0".to_vec()),
+                Response::Array(Vec::new()),
+            ])
+        }
     };
-    
+
     match el.sscan(cursor as usize, pattern.as_deref(), count) {
         Ok((next_cursor, members)) => Response::Array(vec![
             Response::Data(next_cursor.to_string().into_bytes()),
@@ -2865,7 +2901,7 @@ fn zscan(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
     validate!(cursor >= 0, "ERR invalid cursor");
     let mut pattern = None;
     let mut count = 10;
-    
+
     let mut i = 3;
     while i < parser.argv.len() {
         let arg = try_validate!(parser.get_str(i), "syntax error");
@@ -2886,15 +2922,17 @@ fn zscan(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
             _ => return Response::Error("syntax error".to_owned()),
         }
     }
-    
+
     let el = match db.get(dbindex, &key) {
         Some(e) => e,
-        None => return Response::Array(vec![
-            Response::Data(b"0".to_vec()),
-            Response::Array(Vec::new()),
-        ]),
+        None => {
+            return Response::Array(vec![
+                Response::Data(b"0".to_vec()),
+                Response::Array(Vec::new()),
+            ])
+        }
     };
-    
+
     match el.zscan(cursor as usize, pattern.as_deref(), count) {
         Ok((next_cursor, members)) => Response::Array(vec![
             Response::Data(next_cursor.to_string().into_bytes()),
@@ -2911,7 +2949,7 @@ fn hscan(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
     validate!(cursor >= 0, "ERR invalid cursor");
     let mut pattern = None;
     let mut count = 10;
-    
+
     let mut i = 3;
     while i < parser.argv.len() {
         let arg = try_validate!(parser.get_str(i), "syntax error");
@@ -2932,15 +2970,17 @@ fn hscan(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
             _ => return Response::Error("syntax error".to_owned()),
         }
     }
-    
+
     let el = match db.get(dbindex, &key) {
         Some(e) => e,
-        None => return Response::Array(vec![
-            Response::Data(b"0".to_vec()),
-            Response::Array(Vec::new()),
-        ]),
+        None => {
+            return Response::Array(vec![
+                Response::Data(b"0".to_vec()),
+                Response::Array(Vec::new()),
+            ])
+        }
     };
-    
+
     match el.hscan(cursor as usize, pattern.as_deref(), count) {
         Ok((next_cursor, fields)) => Response::Array(vec![
             Response::Data(next_cursor.to_string().into_bytes()),
@@ -3134,7 +3174,7 @@ fn role(_parser: &mut ParsedCommand, _db: &mut Database) -> Response {
     // For now, always return master role
     Response::Array(vec![
         Response::Data(b"master".to_vec()),
-        Response::Integer(0), // replication offset
+        Response::Integer(0),        // replication offset
         Response::Array(Vec::new()), // connected slaves
     ])
 }
@@ -3143,7 +3183,7 @@ fn slaveof(parser: &mut ParsedCommand, _db: &mut Database) -> Response {
     validate_arguments_exact!(parser, 3);
     let host = try_validate!(parser.get_str(1), "Invalid host");
     let port = try_validate!(parser.get_str(2), "Invalid port");
-    
+
     // TODO: Implement full replication support
     // For now, just return OK
     if host == "NO" && port == "ONE" {
@@ -3160,30 +3200,28 @@ fn object(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Resp
     validate_arguments_gte!(parser, 3);
     let subcommand = try_validate!(parser.get_str(1), "Invalid subcommand");
     let key = try_validate!(parser.get_vec(2), "Invalid key");
-    
+
     match &*subcommand.to_ascii_lowercase() {
-        "encoding" => {
-            match db.get(dbindex, &key) {
-                Some(value) => {
-                    let encoding = match value {
-                        Value::String(_) => "raw",
-                        Value::List(l) => match l {
-                            ValueList::Data(_) => "linkedlist",
-                        },
-                        Value::Set(_) => "hashtable",
-                        Value::SortedSet(_) => "skiplist",
-                        Value::Hash(h) => match h {
-                            ValueHash::ZipList(_) => "ziplist",
-                            ValueHash::HashMap(_) => "hashtable",
-                        },
-                        Value::Bloom(_) => "bloom",
-                        Value::Nil => return Response::Nil,
-                    };
-                    Response::Data(encoding.to_string().into_bytes())
-                }
-                None => Response::Nil,
+        "encoding" => match db.get(dbindex, &key) {
+            Some(value) => {
+                let encoding = match value {
+                    Value::String(_) => "raw",
+                    Value::List(l) => match l {
+                        ValueList::Data(_) => "linkedlist",
+                    },
+                    Value::Set(_) => "hashtable",
+                    Value::SortedSet(_) => "skiplist",
+                    Value::Hash(h) => match h {
+                        ValueHash::ZipList(_) => "ziplist",
+                        ValueHash::HashMap(_) => "hashtable",
+                    },
+                    Value::Bloom(_) => "bloom",
+                    Value::Nil => return Response::Nil,
+                };
+                Response::Data(encoding.to_string().into_bytes())
             }
-        }
+            None => Response::Nil,
+        },
         "idletime" => {
             // TODO: Track last access time for LRU
             // For now, return 0
@@ -3208,48 +3246,48 @@ fn object(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Resp
                 None => Response::Nil,
             }
         }
-        _ => Response::Error("ERR Unknown subcommand or wrong number of arguments for OBJECT".to_owned()),
+        _ => Response::Error(
+            "ERR Unknown subcommand or wrong number of arguments for OBJECT".to_owned(),
+        ),
     }
 }
 
 fn bitcount(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Response {
     validate_arguments_gte!(parser, 2);
     let key = try_validate!(parser.get_vec(1), "Invalid key");
-    
+
     let start = if parser.argv.len() > 2 {
         let s = try_validate!(parser.get_i64(2), "Invalid start");
         s as usize
     } else {
         0
     };
-    
+
     let end = if parser.argv.len() > 3 {
         let e = try_validate!(parser.get_i64(3), "Invalid end");
         e as usize
     } else {
         usize::MAX
     };
-    
+
     match db.get(dbindex, &key) {
-        Some(value) => {
-            match value.get() {
-                Ok(data) => {
-                    let data_len = data.len();
-                    let start_byte = std::cmp::min(start, data_len);
-                    let end_byte = std::cmp::min(end + 1, data_len);
-                    if start_byte >= end_byte {
-                        return Response::Integer(0);
-                    }
-                    let slice = &data[start_byte..end_byte];
-                    let mut count = 0;
-                    for &byte in slice {
-                        count += byte.count_ones() as i64;
-                    }
-                    Response::Integer(count)
+        Some(value) => match value.get() {
+            Ok(data) => {
+                let data_len = data.len();
+                let start_byte = std::cmp::min(start, data_len);
+                let end_byte = std::cmp::min(end + 1, data_len);
+                if start_byte >= end_byte {
+                    return Response::Integer(0);
                 }
-                Err(_) => Response::Integer(0),
+                let slice = &data[start_byte..end_byte];
+                let mut count = 0;
+                for &byte in slice {
+                    count += byte.count_ones() as i64;
+                }
+                Response::Integer(count)
             }
-        }
+            Err(_) => Response::Integer(0),
+        },
         None => Response::Integer(0),
     }
 }
@@ -3259,48 +3297,48 @@ fn bitpos(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Resp
     let key = try_validate!(parser.get_vec(1), "Invalid key");
     let bit = try_validate!(parser.get_i64(2), "Invalid bit");
     validate!(bit == 0 || bit == 1, "ERR The bit argument must be 1 or 0");
-    
+
     let start = if parser.argv.len() > 3 {
         let s = try_validate!(parser.get_i64(3), "Invalid start");
         s as usize
     } else {
         0
     };
-    
+
     let end = if parser.argv.len() > 4 {
         let e = try_validate!(parser.get_i64(4), "Invalid end");
         e as usize
     } else {
         usize::MAX
     };
-    
+
     match db.get(dbindex, &key) {
-        Some(value) => {
-            match value.get() {
-                Ok(data) => {
-                    let data_len = data.len();
-                    let start_byte = std::cmp::min(start, data_len);
-                    let end_byte = std::cmp::min(end + 1, data_len);
-                    if start_byte >= end_byte {
-                        return Response::Integer(if bit == 0 { 0 } else { -1 });
-                    }
-                    let slice = &data[start_byte..end_byte];
-                    let target_bit = bit == 1;
-                    let mut bit_offset = 0;
-                    for &byte in slice {
-                        for bit_idx in 0..8 {
-                            let bit_val = (byte & (1 << (7 - bit_idx))) != 0;
-                            if bit_val == target_bit {
-                                return Response::Integer((start_byte * 8 + bit_offset + bit_idx) as i64);
-                            }
-                        }
-                        bit_offset += 8;
-                    }
-                    Response::Integer(if bit == 0 { 0 } else { -1 })
+        Some(value) => match value.get() {
+            Ok(data) => {
+                let data_len = data.len();
+                let start_byte = std::cmp::min(start, data_len);
+                let end_byte = std::cmp::min(end + 1, data_len);
+                if start_byte >= end_byte {
+                    return Response::Integer(if bit == 0 { 0 } else { -1 });
                 }
-                Err(_) => Response::Integer(if bit == 0 { 0 } else { -1 }),
+                let slice = &data[start_byte..end_byte];
+                let target_bit = bit == 1;
+                let mut bit_offset = 0;
+                for &byte in slice {
+                    for bit_idx in 0..8 {
+                        let bit_val = (byte & (1 << (7 - bit_idx))) != 0;
+                        if bit_val == target_bit {
+                            return Response::Integer(
+                                (start_byte * 8 + bit_offset + bit_idx) as i64,
+                            );
+                        }
+                    }
+                    bit_offset += 8;
+                }
+                Response::Integer(if bit == 0 { 0 } else { -1 })
             }
-        }
+            Err(_) => Response::Integer(if bit == 0 { 0 } else { -1 }),
+        },
         None => Response::Integer(if bit == 0 { 0 } else { -1 }),
     }
 }
@@ -3309,37 +3347,37 @@ fn bitop(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
     validate_arguments_gte!(parser, 4);
     let op = try_validate!(parser.get_str(1), "Invalid operation");
     let dest_key = try_validate!(parser.get_vec(2), "Invalid destination key");
-    
+
     let mut source_keys = Vec::new();
     for i in 3..parser.argv.len() {
         source_keys.push(try_validate!(parser.get_vec(i), "Invalid source key"));
     }
-    
+
     let op_lower = op.to_ascii_lowercase();
     match op_lower.as_str() {
         "and" | "or" | "xor" => {
             if source_keys.is_empty() {
-                return Response::Error("ERR wrong number of arguments for 'bitop' command".to_owned());
+                return Response::Error(
+                    "ERR wrong number of arguments for 'bitop' command".to_owned(),
+                );
             }
-            
+
             // Get all source values
             let mut sources = Vec::new();
             let mut max_len = 0;
             for key in &source_keys {
                 match db.get(dbindex, key) {
-                    Some(value) => {
-                        match value.get() {
-                            Ok(data) => {
-                                max_len = std::cmp::max(max_len, data.len());
-                                sources.push(Some(data));
-                            }
-                            Err(_) => sources.push(None),
+                    Some(value) => match value.get() {
+                        Ok(data) => {
+                            max_len = std::cmp::max(max_len, data.len());
+                            sources.push(Some(data));
                         }
-                    }
+                        Err(_) => sources.push(None),
+                    },
                     None => sources.push(None),
                 }
             }
-            
+
             // Perform bitwise operation
             let mut result = vec![0u8; max_len];
             for i in 0..max_len {
@@ -3349,10 +3387,7 @@ fn bitop(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
                         // Missing keys are treated as all zeros
                         let mut val = 0xFFu8;
                         for source in &sources {
-                            let byte = source.as_ref()
-                                .and_then(|s| s.get(i))
-                                .copied()
-                                .unwrap_or(0);
+                            let byte = source.as_ref().and_then(|s| s.get(i)).copied().unwrap_or(0);
                             val &= byte;
                         }
                         val
@@ -3361,10 +3396,7 @@ fn bitop(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
                         // For OR, start with 0x00 and OR with each source
                         let mut val = 0x00u8;
                         for source in &sources {
-                            let byte = source.as_ref()
-                                .and_then(|s| s.get(i))
-                                .copied()
-                                .unwrap_or(0);
+                            let byte = source.as_ref().and_then(|s| s.get(i)).copied().unwrap_or(0);
                             val |= byte;
                         }
                         val
@@ -3373,10 +3405,7 @@ fn bitop(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
                         // For XOR, start with 0x00 and XOR with each source
                         let mut val = 0x00u8;
                         for source in &sources {
-                            let byte = source.as_ref()
-                                .and_then(|s| s.get(i))
-                                .copied()
-                                .unwrap_or(0);
+                            let byte = source.as_ref().and_then(|s| s.get(i)).copied().unwrap_or(0);
                             val ^= byte;
                         }
                         val
@@ -3385,7 +3414,7 @@ fn bitop(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
                 };
                 result[i] = byte_val;
             }
-            
+
             // Store result
             db.get_or_create(dbindex, &dest_key).set(result).unwrap();
             db.key_updated(dbindex, &dest_key);
@@ -3393,28 +3422,32 @@ fn bitop(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
         }
         "not" => {
             if source_keys.len() != 1 {
-                return Response::Error("ERR BITOP NOT must be called with a single source key".to_owned());
+                return Response::Error(
+                    "ERR BITOP NOT must be called with a single source key".to_owned(),
+                );
             }
-            
+
             let source_key = &source_keys[0];
             match db.get(dbindex, source_key) {
-                Some(value) => {
-                    match value.get() {
-                        Ok(data) => {
-                            let result: Vec<u8> = data.iter().map(|&b| !b).collect();
-                            db.get_or_create(dbindex, &dest_key).set(result).unwrap();
-                            db.key_updated(dbindex, &dest_key);
-                            Response::Integer(data.len() as i64)
-                        }
-                        Err(_) => {
-                            db.get_or_create(dbindex, &dest_key).set(Vec::new()).unwrap();
-                            db.key_updated(dbindex, &dest_key);
-                            Response::Integer(0)
-                        }
+                Some(value) => match value.get() {
+                    Ok(data) => {
+                        let result: Vec<u8> = data.iter().map(|&b| !b).collect();
+                        db.get_or_create(dbindex, &dest_key).set(result).unwrap();
+                        db.key_updated(dbindex, &dest_key);
+                        Response::Integer(data.len() as i64)
                     }
-                }
+                    Err(_) => {
+                        db.get_or_create(dbindex, &dest_key)
+                            .set(Vec::new())
+                            .unwrap();
+                        db.key_updated(dbindex, &dest_key);
+                        Response::Integer(0)
+                    }
+                },
                 None => {
-                    db.get_or_create(dbindex, &dest_key).set(Vec::new()).unwrap();
+                    db.get_or_create(dbindex, &dest_key)
+                        .set(Vec::new())
+                        .unwrap();
                     db.key_updated(dbindex, &dest_key);
                     Response::Integer(0)
                 }
@@ -3427,7 +3460,7 @@ fn bitop(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Respo
 fn client_cmd(parser: &mut ParsedCommand, client: &mut Client) -> Response {
     validate_arguments_gte!(parser, 2);
     let subcommand = try_validate!(parser.get_str(1), "Invalid subcommand");
-    
+
     match &*subcommand.to_ascii_lowercase() {
         "list" => {
             // TODO: Implement full client list with all client information
@@ -3469,7 +3502,9 @@ fn client_cmd(parser: &mut ParsedCommand, client: &mut Client) -> Response {
             // For now, return error
             Response::Error("ERR CLIENT REPLY is not implemented".to_owned())
         }
-        _ => Response::Error("ERR Unknown subcommand or wrong number of arguments for 'client' command".to_owned()),
+        _ => Response::Error(
+            "ERR Unknown subcommand or wrong number of arguments for 'client' command".to_owned(),
+        ),
     }
 }
 
@@ -3503,7 +3538,9 @@ fn pubsub(parser: &mut ParsedCommand, db: &mut Database) -> Response {
             validate_arguments_exact!(parser, 2);
             Response::Integer(db.pubsub_patterns() as i64)
         }
-        _ => Response::Error("ERR Unknown PUBSUB subcommand or wrong number of arguments".to_owned()),
+        _ => {
+            Response::Error("ERR Unknown PUBSUB subcommand or wrong number of arguments".to_owned())
+        }
     }
 }
 
@@ -3535,12 +3572,12 @@ fn format_bytes(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     let mut size = bytes as f64;
     let mut unit_idx = 0;
-    
+
     while size >= 1024.0 && unit_idx < UNITS.len() - 1 {
         size /= 1024.0;
         unit_idx += 1;
     }
-    
+
     if unit_idx == 0 {
         format!("{}B", bytes)
     } else {
@@ -3739,10 +3776,7 @@ fn info(parser: &mut ParsedCommand, db: &Database) -> Response {
                 mem_allocator:libc\r\n\
                 \r\n\
                 ",
-                used_memory,
-                used_memory_human,
-                used_memory_peak,
-                used_memory_peak_human,
+                used_memory, used_memory_human, used_memory_peak, used_memory_peak_human,
             ),
             "ERR unexpected"
         );
@@ -3867,11 +3901,17 @@ fn config(parser: &mut ParsedCommand, db: &mut Database) -> Response {
                 }
                 "appendonly" => {
                     result.push(Response::Data(b"appendonly".to_vec()));
-                    result.push(Response::Data(if db.config.appendonly { b"yes".to_vec() } else { b"no".to_vec() }));
+                    result.push(Response::Data(if db.config.appendonly {
+                        b"yes".to_vec()
+                    } else {
+                        b"no".to_vec()
+                    }));
                 }
                 "appendfilename" => {
                     result.push(Response::Data(b"appendfilename".to_vec()));
-                    result.push(Response::Data(db.config.appendfilename.clone().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.appendfilename.clone().into_bytes(),
+                    ));
                 }
                 "requirepass" => {
                     result.push(Response::Data(b"requirepass".to_vec()));
@@ -3894,11 +3934,17 @@ fn config(parser: &mut ParsedCommand, db: &mut Database) -> Response {
                 }
                 "activerehashing" => {
                     result.push(Response::Data(b"activerehashing".to_vec()));
-                    result.push(Response::Data(if db.config.active_rehashing { b"yes".to_vec() } else { b"no".to_vec() }));
+                    result.push(Response::Data(if db.config.active_rehashing {
+                        b"yes".to_vec()
+                    } else {
+                        b"no".to_vec()
+                    }));
                 }
                 "set-max-intset-entries" => {
                     result.push(Response::Data(b"set-max-intset-entries".to_vec()));
-                    result.push(Response::Data(db.config.set_max_intset_entries.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.set_max_intset_entries.to_string().into_bytes(),
+                    ));
                 }
                 "dbfilename" => {
                     result.push(Response::Data(b"dbfilename".to_vec()));
@@ -3913,7 +3959,9 @@ fn config(parser: &mut ParsedCommand, db: &mut Database) -> Response {
                 }
                 "maxmemory-policy" => {
                     result.push(Response::Data(b"maxmemory-policy".to_vec()));
-                    result.push(Response::Data(db.config.maxmemory_policy.clone().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.maxmemory_policy.clone().into_bytes(),
+                    ));
                 }
                 "appendfsync" => {
                     result.push(Response::Data(b"appendfsync".to_vec()));
@@ -3921,75 +3969,122 @@ fn config(parser: &mut ParsedCommand, db: &mut Database) -> Response {
                 }
                 "stop-writes-on-bgsave-error" => {
                     result.push(Response::Data(b"stop-writes-on-bgsave-error".to_vec()));
-                    result.push(Response::Data(if db.config.stop_writes_on_bgsave_error { b"yes".to_vec() } else { b"no".to_vec() }));
+                    result.push(Response::Data(if db.config.stop_writes_on_bgsave_error {
+                        b"yes".to_vec()
+                    } else {
+                        b"no".to_vec()
+                    }));
                 }
                 "rdbcompression" => {
                     result.push(Response::Data(b"rdbcompression".to_vec()));
-                    result.push(Response::Data(if db.config.rdbcompression { b"yes".to_vec() } else { b"no".to_vec() }));
+                    result.push(Response::Data(if db.config.rdbcompression {
+                        b"yes".to_vec()
+                    } else {
+                        b"no".to_vec()
+                    }));
                 }
                 "rdbchecksum" => {
                     result.push(Response::Data(b"rdbchecksum".to_vec()));
-                    result.push(Response::Data(if db.config.rdbchecksum { b"yes".to_vec() } else { b"no".to_vec() }));
+                    result.push(Response::Data(if db.config.rdbchecksum {
+                        b"yes".to_vec()
+                    } else {
+                        b"no".to_vec()
+                    }));
                 }
                 "maxclients" => {
                     result.push(Response::Data(b"maxclients".to_vec()));
-                    result.push(Response::Data(db.config.maxclients.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.maxclients.to_string().into_bytes(),
+                    ));
                 }
                 "maxmemory-samples" => {
                     result.push(Response::Data(b"maxmemory-samples".to_vec()));
-                    result.push(Response::Data(db.config.maxmemory_samples.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.maxmemory_samples.to_string().into_bytes(),
+                    ));
                 }
                 "no-appendfsync-on-rewrite" => {
                     result.push(Response::Data(b"no-appendfsync-on-rewrite".to_vec()));
-                    result.push(Response::Data(if db.config.no_appendfsync_on_rewrite { b"yes".to_vec() } else { b"no".to_vec() }));
+                    result.push(Response::Data(if db.config.no_appendfsync_on_rewrite {
+                        b"yes".to_vec()
+                    } else {
+                        b"no".to_vec()
+                    }));
                 }
                 "auto-aof-rewrite-percentage" => {
                     result.push(Response::Data(b"auto-aof-rewrite-percentage".to_vec()));
-                    result.push(Response::Data(db.config.auto_aof_rewrite_percentage.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config
+                            .auto_aof_rewrite_percentage
+                            .to_string()
+                            .into_bytes(),
+                    ));
                 }
                 "auto-aof-rewrite-min-size" => {
                     result.push(Response::Data(b"auto-aof-rewrite-min-size".to_vec()));
-                    result.push(Response::Data(db.config.auto_aof_rewrite_min_size.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.auto_aof_rewrite_min_size.to_string().into_bytes(),
+                    ));
                 }
                 "slowlog-log-slower-than" => {
                     result.push(Response::Data(b"slowlog-log-slower-than".to_vec()));
-                    result.push(Response::Data(db.config.slowlog_log_slower_than.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.slowlog_log_slower_than.to_string().into_bytes(),
+                    ));
                 }
                 "slowlog-max-len" => {
                     result.push(Response::Data(b"slowlog-max-len".to_vec()));
-                    result.push(Response::Data(db.config.slowlog_max_len.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.slowlog_max_len.to_string().into_bytes(),
+                    ));
                 }
                 "latency-monitor-threshold" => {
                     result.push(Response::Data(b"latency-monitor-threshold".to_vec()));
-                    result.push(Response::Data(db.config.latency_monitor_threshold.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.latency_monitor_threshold.to_string().into_bytes(),
+                    ));
                 }
                 "hash-max-ziplist-entries" => {
                     result.push(Response::Data(b"hash-max-ziplist-entries".to_vec()));
-                    result.push(Response::Data(db.config.hash_max_ziplist_entries.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.hash_max_ziplist_entries.to_string().into_bytes(),
+                    ));
                 }
                 "hash-max-ziplist-value" => {
                     result.push(Response::Data(b"hash-max-ziplist-value".to_vec()));
-                    result.push(Response::Data(db.config.hash_max_ziplist_value.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.hash_max_ziplist_value.to_string().into_bytes(),
+                    ));
                 }
                 "list-max-ziplist-entries" => {
                     result.push(Response::Data(b"list-max-ziplist-entries".to_vec()));
-                    result.push(Response::Data(db.config.list_max_ziplist_entries.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.list_max_ziplist_entries.to_string().into_bytes(),
+                    ));
                 }
                 "list-max-ziplist-value" => {
                     result.push(Response::Data(b"list-max-ziplist-value".to_vec()));
-                    result.push(Response::Data(db.config.list_max_ziplist_value.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.list_max_ziplist_value.to_string().into_bytes(),
+                    ));
                 }
                 "zset-max-ziplist-entries" => {
                     result.push(Response::Data(b"zset-max-ziplist-entries".to_vec()));
-                    result.push(Response::Data(db.config.zset_max_ziplist_entries.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.zset_max_ziplist_entries.to_string().into_bytes(),
+                    ));
                 }
                 "zset-max-ziplist-value" => {
                     result.push(Response::Data(b"zset-max-ziplist-value".to_vec()));
-                    result.push(Response::Data(db.config.zset_max_ziplist_value.to_string().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.zset_max_ziplist_value.to_string().into_bytes(),
+                    ));
                 }
                 "notify-keyspace-events" => {
                     result.push(Response::Data(b"notify-keyspace-events".to_vec()));
-                    result.push(Response::Data(db.config.notify_keyspace_events.clone().into_bytes()));
+                    result.push(Response::Data(
+                        db.config.notify_keyspace_events.clone().into_bytes(),
+                    ));
                 }
                 _ => return Response::Array(Vec::new()),
             }
@@ -4005,7 +4100,11 @@ fn config(parser: &mut ParsedCommand, db: &mut Database) -> Response {
                     db.config.appendonly = match &*value.to_ascii_lowercase() {
                         "yes" => true,
                         "no" => false,
-                        _ => return Response::Error("ERR Invalid argument for CONFIG SET 'appendonly'".to_owned()),
+                        _ => {
+                            return Response::Error(
+                                "ERR Invalid argument for CONFIG SET 'appendonly'".to_owned(),
+                            )
+                        }
                     };
                 }
                 "appendfilename" => {
@@ -4014,94 +4113,135 @@ fn config(parser: &mut ParsedCommand, db: &mut Database) -> Response {
                 "dbfilename" => {
                     db.config.dbfilename = value.to_owned();
                 }
-                "maxmemory" => {
-                    match value.parse::<u64>() {
-                        Ok(m) if m == 0 => db.config.maxmemory = None,
-                        Ok(m) => db.config.maxmemory = Some(m),
-                        Err(_) => return Response::Error("ERR Invalid argument for CONFIG SET 'maxmemory'".to_owned()),
+                "maxmemory" => match value.parse::<u64>() {
+                    Ok(m) if m == 0 => db.config.maxmemory = None,
+                    Ok(m) => db.config.maxmemory = Some(m),
+                    Err(_) => {
+                        return Response::Error(
+                            "ERR Invalid argument for CONFIG SET 'maxmemory'".to_owned(),
+                        )
                     }
-                }
-                "maxmemory-policy" => {
-                    match &*value.to_ascii_lowercase() {
-                        "volatile-lru" | "allkeys-lru" | "volatile-random" | "allkeys-random" | "volatile-ttl" | "noeviction" => {
-                            db.config.maxmemory_policy = value.to_owned();
-                        }
-                        _ => return Response::Error("ERR Invalid argument for CONFIG SET 'maxmemory-policy'".to_owned()),
+                },
+                "maxmemory-policy" => match &*value.to_ascii_lowercase() {
+                    "volatile-lru" | "allkeys-lru" | "volatile-random" | "allkeys-random"
+                    | "volatile-ttl" | "noeviction" => {
+                        db.config.maxmemory_policy = value.to_owned();
                     }
-                }
-                "appendfsync" => {
-                    match &*value.to_ascii_lowercase() {
-                        "always" | "everysec" | "no" => {
-                            db.config.appendfsync = value.to_owned();
-                        }
-                        _ => return Response::Error("ERR Invalid argument for CONFIG SET 'appendfsync'".to_owned()),
+                    _ => {
+                        return Response::Error(
+                            "ERR Invalid argument for CONFIG SET 'maxmemory-policy'".to_owned(),
+                        )
                     }
-                }
-                "hz" => {
-                    match value.parse::<u32>() {
-                        Ok(hz) if hz > 0 && hz <= 500 => db.config.hz = hz,
-                        _ => return Response::Error("ERR Invalid argument for CONFIG SET 'hz'".to_owned()),
+                },
+                "appendfsync" => match &*value.to_ascii_lowercase() {
+                    "always" | "everysec" | "no" => {
+                        db.config.appendfsync = value.to_owned();
                     }
-                }
+                    _ => {
+                        return Response::Error(
+                            "ERR Invalid argument for CONFIG SET 'appendfsync'".to_owned(),
+                        )
+                    }
+                },
+                "hz" => match value.parse::<u32>() {
+                    Ok(hz) if hz > 0 && hz <= 500 => db.config.hz = hz,
+                    _ => {
+                        return Response::Error(
+                            "ERR Invalid argument for CONFIG SET 'hz'".to_owned(),
+                        )
+                    }
+                },
                 "activerehashing" => {
                     db.config.active_rehashing = match &*value.to_ascii_lowercase() {
                         "yes" => true,
                         "no" => false,
-                        _ => return Response::Error("ERR Invalid argument for CONFIG SET 'activerehashing'".to_owned()),
+                        _ => {
+                            return Response::Error(
+                                "ERR Invalid argument for CONFIG SET 'activerehashing'".to_owned(),
+                            )
+                        }
                     };
                 }
-                "hash-max-ziplist-entries" => {
-                    match value.parse::<usize>() {
-                        Ok(v) if v > 0 => db.config.hash_max_ziplist_entries = v,
-                        _ => return Response::Error("ERR Invalid argument for CONFIG SET 'hash-max-ziplist-entries'".to_owned()),
+                "hash-max-ziplist-entries" => match value.parse::<usize>() {
+                    Ok(v) if v > 0 => db.config.hash_max_ziplist_entries = v,
+                    _ => {
+                        return Response::Error(
+                            "ERR Invalid argument for CONFIG SET 'hash-max-ziplist-entries'"
+                                .to_owned(),
+                        )
                     }
-                }
-                "hash-max-ziplist-value" => {
-                    match value.parse::<usize>() {
-                        Ok(v) if v > 0 => db.config.hash_max_ziplist_value = v,
-                        _ => return Response::Error("ERR Invalid argument for CONFIG SET 'hash-max-ziplist-value'".to_owned()),
+                },
+                "hash-max-ziplist-value" => match value.parse::<usize>() {
+                    Ok(v) if v > 0 => db.config.hash_max_ziplist_value = v,
+                    _ => {
+                        return Response::Error(
+                            "ERR Invalid argument for CONFIG SET 'hash-max-ziplist-value'"
+                                .to_owned(),
+                        )
                     }
-                }
-                "list-max-ziplist-entries" => {
-                    match value.parse::<usize>() {
-                        Ok(v) if v > 0 => db.config.list_max_ziplist_entries = v,
-                        _ => return Response::Error("ERR Invalid argument for CONFIG SET 'list-max-ziplist-entries'".to_owned()),
+                },
+                "list-max-ziplist-entries" => match value.parse::<usize>() {
+                    Ok(v) if v > 0 => db.config.list_max_ziplist_entries = v,
+                    _ => {
+                        return Response::Error(
+                            "ERR Invalid argument for CONFIG SET 'list-max-ziplist-entries'"
+                                .to_owned(),
+                        )
                     }
-                }
-                "list-max-ziplist-value" => {
-                    match value.parse::<usize>() {
-                        Ok(v) if v > 0 => db.config.list_max_ziplist_value = v,
-                        _ => return Response::Error("ERR Invalid argument for CONFIG SET 'list-max-ziplist-value'".to_owned()),
+                },
+                "list-max-ziplist-value" => match value.parse::<usize>() {
+                    Ok(v) if v > 0 => db.config.list_max_ziplist_value = v,
+                    _ => {
+                        return Response::Error(
+                            "ERR Invalid argument for CONFIG SET 'list-max-ziplist-value'"
+                                .to_owned(),
+                        )
                     }
-                }
-                "zset-max-ziplist-entries" => {
-                    match value.parse::<usize>() {
-                        Ok(v) if v > 0 => db.config.zset_max_ziplist_entries = v,
-                        _ => return Response::Error("ERR Invalid argument for CONFIG SET 'zset-max-ziplist-entries'".to_owned()),
+                },
+                "zset-max-ziplist-entries" => match value.parse::<usize>() {
+                    Ok(v) if v > 0 => db.config.zset_max_ziplist_entries = v,
+                    _ => {
+                        return Response::Error(
+                            "ERR Invalid argument for CONFIG SET 'zset-max-ziplist-entries'"
+                                .to_owned(),
+                        )
                     }
-                }
-                "zset-max-ziplist-value" => {
-                    match value.parse::<usize>() {
-                        Ok(v) if v > 0 => db.config.zset_max_ziplist_value = v,
-                        _ => return Response::Error("ERR Invalid argument for CONFIG SET 'zset-max-ziplist-value'".to_owned()),
+                },
+                "zset-max-ziplist-value" => match value.parse::<usize>() {
+                    Ok(v) if v > 0 => db.config.zset_max_ziplist_value = v,
+                    _ => {
+                        return Response::Error(
+                            "ERR Invalid argument for CONFIG SET 'zset-max-ziplist-value'"
+                                .to_owned(),
+                        )
                     }
-                }
+                },
                 "notify-keyspace-events" => {
                     // Validate that it contains only valid flags
                     let valid_flags = "Kg$lshzxeEA";
                     let value_upper = value.to_uppercase();
                     for c in value_upper.chars() {
                         if !valid_flags.contains(c) {
-                            return Response::Error("ERR Invalid argument for CONFIG SET 'notify-keyspace-events'".to_owned());
+                            return Response::Error(
+                                "ERR Invalid argument for CONFIG SET 'notify-keyspace-events'"
+                                    .to_owned(),
+                            );
                         }
                     }
                     db.config.notify_keyspace_events = value.to_owned();
                 }
-                _ => return Response::Error(format!("ERR CONFIG SET failed (possibly unknown parameter '{}')", param)),
+                _ => {
+                    return Response::Error(format!(
+                        "ERR CONFIG SET failed (possibly unknown parameter '{}')",
+                        param
+                    ))
+                }
             }
             Response::Status("OK".to_owned())
         }
-        _ => Response::Error("ERR CONFIG subcommand must be one of GET, SET, RESETSTAT, REWRITE, GETSET".to_owned()),
+        _ => Response::Error(
+            "ERR CONFIG subcommand must be one of GET, SET, RESETSTAT, REWRITE, GETSET".to_owned(),
+        ),
     }
 }
 
@@ -4162,7 +4302,10 @@ fn randomkey(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> R
 fn move_key(parser: &mut ParsedCommand, db: &mut Database, dbindex: usize) -> Response {
     validate_arguments_exact!(parser, 3);
     let key = try_validate!(parser.get_vec(1), "Invalid key");
-    let target_db = try_validate!(parser.get_i64(2), "ERR value is not an integer or out of range");
+    let target_db = try_validate!(
+        parser.get_i64(2),
+        "ERR value is not an integer or out of range"
+    );
     validate!(
         target_db >= 0 && (target_db as usize) < db.config.databases as usize,
         "ERR target database index is out of range"
@@ -4326,32 +4469,170 @@ fn command_cmd(parser: &mut ParsedCommand, _db: &Database) -> Response {
         // COMMAND - return all commands
         let mut result = Vec::new();
         let commands = vec![
-            "get", "set", "setnx", "setex", "psetex", "append", "strlen", "del", "exists",
-            "setbit", "getbit", "setrange", "getrange", "substr", "incr", "decr", "mget",
-            "rpush", "lpush", "rpushx", "lpushx", "linsert", "rpop", "lpop", "brpop",
-            "brpoplpush", "blpop", "llen", "lindex", "lset", "lrange", "ltrim", "lrem",
-            "rpoplpush", "sadd", "srem", "smove", "sismember", "scard", "spop", "srandmember",
-            "sinter", "sinterstore", "sunion", "sunionstore", "sdiff", "sdiffstore", "smembers",
-            "sscan", "zadd", "zincrby", "zrem", "zremrangebyscore", "zremrangebyrank",
-            "zremrangebylex", "zunionstore", "zinterstore", "zrange", "zrangebyscore",
-            "zrevrangebyscore", "zrangebylex", "zrevrangebylex", "zcount", "zlexcount",
-            "zrevrange", "zcard", "zscore", "zrank", "zrevrank", "zscan", "hset", "hsetnx",
-            "hget", "hmset", "hmget", "hincrby", "hincrbyfloat", "hdel", "hlen", "hstrlen",
-            "hkeys", "hvals", "hgetall", "hexists", "hscan", "incrby", "decrby", "incrbyfloat",
-            "getset", "mset", "msetnx", "randomkey", "select", "move", "rename", "renamenx",
-            "expire", "expireat", "pexpire", "pexpireat", "keys", "scan", "dbsize", "auth",
-            "ping", "echo", "save", "bgsave", "bgrewriteaof", "shutdown", "lastsave", "type",
-            "multi", "exec", "discard", "flushdb", "flushall", "sort", "info", "monitor",
-            "ttl", "pttl", "persist", "slaveof", "role", "config", "subscribe", "unsubscribe",
-            "psubscribe", "punsubscribe", "publish", "pubsub", "watch", "unwatch", "restore",
-            "dump", "object", "client", "time", "bitop", "bitcount", "bitpos", "wait", "command",
-            "pfadd", "pfcount", "pfmerge", "bf.reserve", "bf.add", "bf.madd", "bf.exists",
+            "get",
+            "set",
+            "setnx",
+            "setex",
+            "psetex",
+            "append",
+            "strlen",
+            "del",
+            "exists",
+            "setbit",
+            "getbit",
+            "setrange",
+            "getrange",
+            "substr",
+            "incr",
+            "decr",
+            "mget",
+            "rpush",
+            "lpush",
+            "rpushx",
+            "lpushx",
+            "linsert",
+            "rpop",
+            "lpop",
+            "brpop",
+            "brpoplpush",
+            "blpop",
+            "llen",
+            "lindex",
+            "lset",
+            "lrange",
+            "ltrim",
+            "lrem",
+            "rpoplpush",
+            "sadd",
+            "srem",
+            "smove",
+            "sismember",
+            "scard",
+            "spop",
+            "srandmember",
+            "sinter",
+            "sinterstore",
+            "sunion",
+            "sunionstore",
+            "sdiff",
+            "sdiffstore",
+            "smembers",
+            "sscan",
+            "zadd",
+            "zincrby",
+            "zrem",
+            "zremrangebyscore",
+            "zremrangebyrank",
+            "zremrangebylex",
+            "zunionstore",
+            "zinterstore",
+            "zrange",
+            "zrangebyscore",
+            "zrevrangebyscore",
+            "zrangebylex",
+            "zrevrangebylex",
+            "zcount",
+            "zlexcount",
+            "zrevrange",
+            "zcard",
+            "zscore",
+            "zrank",
+            "zrevrank",
+            "zscan",
+            "hset",
+            "hsetnx",
+            "hget",
+            "hmset",
+            "hmget",
+            "hincrby",
+            "hincrbyfloat",
+            "hdel",
+            "hlen",
+            "hstrlen",
+            "hkeys",
+            "hvals",
+            "hgetall",
+            "hexists",
+            "hscan",
+            "incrby",
+            "decrby",
+            "incrbyfloat",
+            "getset",
+            "mset",
+            "msetnx",
+            "randomkey",
+            "select",
+            "move",
+            "rename",
+            "renamenx",
+            "expire",
+            "expireat",
+            "pexpire",
+            "pexpireat",
+            "keys",
+            "scan",
+            "dbsize",
+            "auth",
+            "ping",
+            "echo",
+            "save",
+            "bgsave",
+            "bgrewriteaof",
+            "shutdown",
+            "lastsave",
+            "type",
+            "multi",
+            "exec",
+            "discard",
+            "flushdb",
+            "flushall",
+            "sort",
+            "info",
+            "monitor",
+            "ttl",
+            "pttl",
+            "persist",
+            "slaveof",
+            "role",
+            "config",
+            "subscribe",
+            "unsubscribe",
+            "psubscribe",
+            "punsubscribe",
+            "publish",
+            "pubsub",
+            "watch",
+            "unwatch",
+            "restore",
+            "dump",
+            "object",
+            "client",
+            "time",
+            "bitop",
+            "bitcount",
+            "bitpos",
+            "wait",
+            "command",
+            "pfadd",
+            "pfcount",
+            "pfmerge",
+            "bf.reserve",
+            "bf.add",
+            "bf.madd",
+            "bf.exists",
             "bf.mexists",
         ];
         #[cfg(feature = "vector-search")]
         let mut commands = commands;
         #[cfg(feature = "vector-search")]
-        commands.extend_from_slice(&["ft.create", "ft.search", "ft.info", "ft.drop", "ft.add", "ft.del"]);
+        commands.extend_from_slice(&[
+            "ft.create",
+            "ft.search",
+            "ft.info",
+            "ft.drop",
+            "ft.add",
+            "ft.del",
+        ]);
         let commands = commands;
         for cmd_name in commands {
             let props = command_properties(cmd_name);
@@ -4398,15 +4679,25 @@ fn command_cmd(parser: &mut ParsedCommand, _db: &Database) -> Response {
             if props.flags.contains(CommandFlags::FAST) {
                 flags.push("fast");
             }
-            cmd_info.push(Response::Array(flags.into_iter().map(|f| Response::Data(f.as_bytes().to_vec())).collect()));
-            cmd_info.push(Response::Data(props.first_key_index.to_string().into_bytes()));
-            cmd_info.push(Response::Data(props.last_key_index.to_string().into_bytes()));
+            cmd_info.push(Response::Array(
+                flags
+                    .into_iter()
+                    .map(|f| Response::Data(f.as_bytes().to_vec()))
+                    .collect(),
+            ));
+            cmd_info.push(Response::Data(
+                props.first_key_index.to_string().into_bytes(),
+            ));
+            cmd_info.push(Response::Data(
+                props.last_key_index.to_string().into_bytes(),
+            ));
             cmd_info.push(Response::Data(props.key_step.to_string().into_bytes()));
             result.push(Response::Array(cmd_info));
         }
         Response::Array(result)
     } else {
-        let subcommand = try_validate!(parser.get_str(1), "Invalid subcommand").to_ascii_lowercase();
+        let subcommand =
+            try_validate!(parser.get_str(1), "Invalid subcommand").to_ascii_lowercase();
         match &*subcommand {
             "count" => {
                 // COMMAND COUNT
@@ -4490,9 +4781,18 @@ fn command_cmd(parser: &mut ParsedCommand, _db: &Database) -> Response {
                     if props.flags.contains(CommandFlags::FAST) {
                         flags.push("fast");
                     }
-                    cmd_info.push(Response::Array(flags.into_iter().map(|f| Response::Data(f.as_bytes().to_vec())).collect()));
-                    cmd_info.push(Response::Data(props.first_key_index.to_string().into_bytes()));
-                    cmd_info.push(Response::Data(props.last_key_index.to_string().into_bytes()));
+                    cmd_info.push(Response::Array(
+                        flags
+                            .into_iter()
+                            .map(|f| Response::Data(f.as_bytes().to_vec()))
+                            .collect(),
+                    ));
+                    cmd_info.push(Response::Data(
+                        props.first_key_index.to_string().into_bytes(),
+                    ));
+                    cmd_info.push(Response::Data(
+                        props.last_key_index.to_string().into_bytes(),
+                    ));
                     cmd_info.push(Response::Data(props.key_step.to_string().into_bytes()));
                     result.push(Response::Array(cmd_info));
                 }
@@ -4508,11 +4808,11 @@ fn wait_cmd(parser: &mut ParsedCommand, _db: &mut Database) -> Response {
     validate_arguments_exact!(parser, 3);
     let numreplicas = try_validate!(parser.get_i64(1), "Invalid numreplicas");
     let _timeout = try_validate!(parser.get_i64(2), "Invalid timeout");
-    
+
     if numreplicas < 0 {
         return Response::Error("ERR numreplicas must be >= 0".to_owned());
     }
-    
+
     // For now, we don't have replication implemented, so we return 0
     // In a full implementation, this would wait for replicas to acknowledge writes
     Response::Data(b"0".to_vec())
@@ -4521,7 +4821,7 @@ fn wait_cmd(parser: &mut ParsedCommand, _db: &mut Database) -> Response {
 fn slowlog(parser: &mut ParsedCommand, db: &mut Database) -> Response {
     validate!(parser.argv.len() >= 2, "Wrong number of parameters");
     let subcommand = try_validate!(parser.get_str(1), "Invalid subcommand");
-    
+
     match subcommand.to_ascii_lowercase().as_str() {
         "get" => {
             let count = if parser.argv.len() > 2 {
@@ -4529,13 +4829,13 @@ fn slowlog(parser: &mut ParsedCommand, db: &mut Database) -> Response {
             } else {
                 None
             };
-            
+
             let entries = db.slowlog_get(count);
             let mut result = Vec::new();
-            
+
             for entry in entries {
                 let mut entry_array = Vec::new();
-                
+
                 // Entry ID
                 entry_array.push(Response::Integer(entry.id as i64));
                 // Timestamp
@@ -4552,15 +4852,13 @@ fn slowlog(parser: &mut ParsedCommand, db: &mut Database) -> Response {
                 entry_array.push(Response::Data(entry.client_addr.clone().into_bytes()));
                 // Client name
                 entry_array.push(Response::Data(entry.client_name.clone().into_bytes()));
-                
+
                 result.push(Response::Array(entry_array));
             }
-            
+
             Response::Array(result)
         }
-        "len" => {
-            Response::Integer(db.slowlog_len() as i64)
-        }
+        "len" => Response::Integer(db.slowlog_len() as i64),
         "reset" => {
             db.slowlog_reset();
             Response::Status("OK".to_owned())
@@ -4872,16 +5170,19 @@ fn execute_command(
     }
     let raw_command = try_opt_validate!(parser.get_str(0), "Invalid command");
     let lower_command = raw_command.to_ascii_lowercase();
-    
+
     // For module-style dotted commands, bypass mapped_command to ensure they're allowed.
     let is_ft_command = lower_command.starts_with("ft.");
     let is_bf_command = lower_command.starts_with("bf.");
-    
+
     // Debug logging
     if raw_command.to_uppercase().starts_with("FT.") || lower_command.starts_with("ft.") {
-        eprintln!("DEBUG: FT command detected: raw='{}', lower='{}', is_ft={}", raw_command, lower_command, is_ft_command);
+        eprintln!(
+            "DEBUG: FT command detected: raw='{}', lower='{}', is_ft={}",
+            raw_command, lower_command, is_ft_command
+        );
     }
-    
+
     let command_name = if is_ft_command || is_bf_command {
         // Module commands - use directly, don't go through mapped_command.
         // Normalize to lowercase for consistency
@@ -4904,7 +5205,10 @@ fn execute_command(
                         args_str = format!(", with args beginning with: {}", args.join(" "));
                     }
                 }
-                return Ok(Response::Error(format!("ERR unknown command '{}'{}", raw_command, args_str)));
+                return Ok(Response::Error(format!(
+                    "ERR unknown command '{}'{}",
+                    raw_command, args_str
+                )));
             }
         }
     };
@@ -5172,14 +5476,12 @@ fn execute_command(
                 "del" => ft_del(parser, db, dbindex),
                 _ => Response::Error(format!("ERR unknown FT subcommand \"{}\"", subcmd)),
             }
-        },
+        }
         #[cfg(not(feature = "vector-search"))]
-        cmd if cmd.starts_with("ft.") => {
-            Response::Error("ERR FT.* commands not available (vector-search feature not enabled)".to_owned())
-        },
-        cmd => {
-            Response::Error(format!("ERR_UNKNOWN_CMD_MATCH:{}", cmd))
-        },
+        cmd if cmd.starts_with("ft.") => Response::Error(
+            "ERR FT.* commands not available (vector-search feature not enabled)".to_owned(),
+        ),
+        cmd => Response::Error(format!("ERR_UNKNOWN_CMD_MATCH:{}", cmd)),
     })
 }
 
@@ -5190,16 +5492,16 @@ pub fn command(
 ) -> Result<Response, ResponseError> {
     let mut log = true;
     let mut write = false;
-    
+
     // Track execution time for slowlog
     let start_time = ustime();
     let r = execute_command(&mut parser, db, client, &mut log, &mut write);
     let duration_us = (ustime() - start_time) as u64;
-    
+
     // TODO: only log if there's anyone listening
     if log {
         db.log_command(client.dbindex, &parser, write);
-        
+
         // Add to slowlog if threshold exceeded
         let client_addr = "127.0.0.1:0".to_string(); // TODO: Get actual client address
         let client_name = String::new(); // TODO: Get client name if set
@@ -6028,15 +6330,13 @@ mod test_command {
                 .unwrap()
                 .is_error()
         );
-        assert!(
-            command(
-                parser!(b"BF.RESERVE key 0.01 1000"),
-                &mut db,
-                &mut Client::mock()
-            )
-            .unwrap()
-            .is_error()
-        );
+        assert!(command(
+            parser!(b"BF.RESERVE key 0.01 1000"),
+            &mut db,
+            &mut Client::mock()
+        )
+        .unwrap()
+        .is_error());
     }
 
     #[test]

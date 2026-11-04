@@ -251,4 +251,3 @@ mod tests {
         assert_eq!(coalesced[1].1, 50);
     }
 }
-

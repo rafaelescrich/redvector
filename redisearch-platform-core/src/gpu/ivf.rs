@@ -7,9 +7,9 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 
 use super::{
-    DistanceMetric, GpuConfig, GpuError, GpuVectorIndex, Result, SearchResult,
-    quantization::{Sq8Quantizer, PqQuantizer, QuantizerType},
+    quantization::{PqQuantizer, QuantizerType, Sq8Quantizer},
     traits::TrainableGpuIndex,
+    DistanceMetric, GpuConfig, GpuError, GpuVectorIndex, Result, SearchResult,
 };
 
 /// IVF index configuration
@@ -224,12 +224,7 @@ impl GpuIvfIndex {
     }
 
     /// Search within a single cluster
-    fn search_cluster(
-        &self,
-        cluster_idx: usize,
-        query: &[f32],
-        k: usize,
-    ) -> Vec<SearchResult> {
+    fn search_cluster(&self, cluster_idx: usize, query: &[f32], k: usize) -> Vec<SearchResult> {
         let list = self.inverted_lists[cluster_idx].read().unwrap();
 
         if list.is_empty() {
@@ -256,8 +251,12 @@ impl GpuIvfIndex {
                         let codes_i8: Vec<i8> = codes.iter().map(|&c| c as i8).collect();
 
                         match self.metric {
-                            DistanceMetric::L2 => quantizer.compute_l2_squared(query, &codes_i8).sqrt(),
-                            DistanceMetric::InnerProduct => quantizer.compute_inner_product(query, &codes_i8),
+                            DistanceMetric::L2 => {
+                                quantizer.compute_l2_squared(query, &codes_i8).sqrt()
+                            }
+                            DistanceMetric::InnerProduct => {
+                                quantizer.compute_inner_product(query, &codes_i8)
+                            }
                             DistanceMetric::Cosine => {
                                 // Approximate cosine using inner product on normalized vectors
                                 quantizer.compute_inner_product(query, &codes_i8)
@@ -605,9 +604,7 @@ mod tests {
 
         let mut index = GpuIvfIndex::new(4, DistanceMetric::L2, gpu_config, ivf_config).unwrap();
 
-        let training: Vec<f32> = (0..100)
-            .flat_map(|i| vec![i as f32 / 100.0; 4])
-            .collect();
+        let training: Vec<f32> = (0..100).flat_map(|i| vec![i as f32 / 100.0; 4]).collect();
 
         index.train(&training).unwrap();
 
@@ -620,4 +617,3 @@ mod tests {
         assert!(!results.is_empty());
     }
 }
-

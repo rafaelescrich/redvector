@@ -187,22 +187,27 @@ impl ValueSortedSet {
     /// Scan sorted set members with scores using cursor-based iteration.
     /// Returns (next_cursor, members_with_scores) where next_cursor is 0 when done.
     /// The result alternates between member and score.
-    pub fn zscan(&self, cursor: usize, pattern: Option<&[u8]>, count: usize) -> (usize, Vec<Vec<u8>>) {
+    pub fn zscan(
+        &self,
+        cursor: usize,
+        pattern: Option<&[u8]>,
+        count: usize,
+    ) -> (usize, Vec<Vec<u8>>) {
         use util::glob_match;
         let skiplist = match *self {
             ValueSortedSet::Data(ref skiplist, _) => skiplist,
         };
-        
+
         let all_members: Vec<_> = skiplist.iter().collect();
         let total = all_members.len();
-        
+
         if cursor >= total {
             return (0, Vec::new());
         }
-        
+
         let end = std::cmp::min(cursor + count, total);
         let mut result = Vec::new();
-        
+
         for i in cursor..end {
             let member = all_members[i];
             let member_vec = member.get_vec();
@@ -216,7 +221,7 @@ impl ValueSortedSet {
                 result.push(format!("{}", member.get_f64()).into_bytes());
             }
         }
-        
+
         let next_cursor = if end >= total { 0 } else { end };
         (next_cursor, result)
     }

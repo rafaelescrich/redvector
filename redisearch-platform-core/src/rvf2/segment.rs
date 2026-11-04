@@ -517,4 +517,3 @@ mod tests {
         assert_eq!(record.patches.len(), 1024 * 128);
     }
 }
-

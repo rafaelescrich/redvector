@@ -18,12 +18,12 @@
 //! - `gpu-cuda`: NVIDIA CUDA acceleration
 //! - `s3`: S3/GCS/MinIO object storage
 
-pub mod vector_index;
-pub mod storage;
 pub mod integration;
-pub mod simd_metrics;
 pub mod persistent_index;
 pub mod quantization;
+pub mod simd_metrics;
+pub mod storage;
+pub mod vector_index;
 
 /// GPU acceleration module (ADR-001)
 #[cfg(any(feature = "gpu-wgpu", feature = "gpu-cuda"))]
@@ -71,15 +71,12 @@ pub struct RedisearchPlatform {
 impl RedisearchPlatform {
     /// Create a new platform instance
     pub fn new(config: PlatformConfig) -> Result<Self> {
-        Ok(Self {
-            config,
-        })
+        Ok(Self { config })
     }
-    
+
     /// Start the platform
     pub async fn start(&mut self) -> Result<()> {
         // Implementation will be added
         Ok(())
     }
 }
-

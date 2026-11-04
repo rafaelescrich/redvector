@@ -1,22 +1,22 @@
 //! Integrated REST and gRPC API server for RedVector
-//! 
+//!
 //! This module provides REST and gRPC APIs that run in the same process as the Redis server,
 //! sharing the same database directly without going through the Redis protocol.
 
 #![cfg(feature = "api-server")]
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::{Html, Json},
-    routing::{get, post, delete},
+    routing::{delete, get, post},
     Router,
 };
-use serde::{Deserialize, Serialize};
-use tower_http::cors::CorsLayer;
 use database::Database;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use tower_http::cors::CorsLayer;
 
 #[cfg(feature = "hnsw-backend")]
 use database::vector_index::{HnswVectorIndex, VectorMetric};
@@ -74,7 +74,7 @@ pub struct PointInput {
 
 #[derive(Deserialize)]
 pub struct SearchQuery {
-    vector: String,  // Comma-separated floats
+    vector: String, // Comma-separated floats
     #[serde(default = "default_limit")]
     limit: usize,
 }
@@ -131,7 +131,7 @@ async fn health() -> Json<ApiResponse<String>> {
 async fn info(State(state): State<ApiState>) -> Json<ApiResponse<serde_json::Value>> {
     let db = state.db.lock().unwrap();
     let indexes = state.indexes.lock().unwrap();
-    
+
     Json(ApiResponse {
         success: true,
         data: Some(serde_json::json!({
@@ -158,7 +158,7 @@ async fn create_collection(
     Json(req): Json<CreateCollectionRequest>,
 ) -> Result<Json<ApiResponse<CollectionInfo>>, StatusCode> {
     let mut indexes = state.indexes.lock().unwrap();
-    
+
     if indexes.contains_key(&collection_name) {
         return Ok(Json(ApiResponse {
             success: false,
@@ -166,7 +166,7 @@ async fn create_collection(
             error: Some(format!("Collection '{}' already exists", collection_name)),
         }));
     }
-    
+
     // Create new HNSW index
     #[cfg(feature = "hnsw-backend")]
     {
@@ -175,10 +175,10 @@ async fn create_collection(
             "innerproduct" | "ip" | "dot" => VectorMetric::InnerProduct,
             _ => VectorMetric::Cosine,
         };
-        
+
         let index = HnswVectorIndex::new(req.vector_size, metric, Some(16), Some(200));
         indexes.insert(collection_name.clone(), Arc::new(Mutex::new(index)));
-        
+
         Ok(Json(ApiResponse {
             success: true,
             data: Some(CollectionInfo {
@@ -190,7 +190,7 @@ async fn create_collection(
             error: None,
         }))
     }
-    
+
     #[cfg(not(feature = "hnsw-backend"))]
     {
         Ok(Json(ApiResponse {
@@ -207,7 +207,7 @@ async fn get_collection(
     Path(collection_name): Path<String>,
 ) -> Result<Json<ApiResponse<CollectionInfo>>, StatusCode> {
     let indexes = state.indexes.lock().unwrap();
-    
+
     match indexes.get(&collection_name) {
         Some(index_arc) => {
             let index = index_arc.lock().unwrap();
@@ -236,7 +236,7 @@ async fn delete_collection(
     Path(collection_name): Path<String>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     let mut indexes = state.indexes.lock().unwrap();
-    
+
     match indexes.remove(&collection_name) {
         Some(_) => Ok(Json(ApiResponse {
             success: true,
@@ -256,17 +256,20 @@ async fn list_collections(
     State(state): State<ApiState>,
 ) -> Result<Json<ApiResponse<Vec<CollectionInfo>>>, StatusCode> {
     let indexes = state.indexes.lock().unwrap();
-    
-    let collections: Vec<CollectionInfo> = indexes.iter().map(|(name, index_arc)| {
-        let index = index_arc.lock().unwrap();
-        CollectionInfo {
-            name: name.clone(),
-            vector_size: index.dimension(),
-            points_count: index.len(),
-            distance: "Cosine".to_string(),
-        }
-    }).collect();
-    
+
+    let collections: Vec<CollectionInfo> = indexes
+        .iter()
+        .map(|(name, index_arc)| {
+            let index = index_arc.lock().unwrap();
+            CollectionInfo {
+                name: name.clone(),
+                vector_size: index.dimension(),
+                points_count: index.len(),
+                distance: "Cosine".to_string(),
+            }
+        })
+        .collect();
+
     Ok(Json(ApiResponse {
         success: true,
         data: Some(collections),
@@ -281,20 +284,20 @@ async fn upsert_points(
     Json(req): Json<UpsertRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
     let indexes = state.indexes.lock().unwrap();
-    
+
     match indexes.get(&collection_name) {
         Some(index_arc) => {
             let mut index = index_arc.lock().unwrap();
             let mut upserted = 0;
             let mut errors = Vec::new();
-            
+
             for point in req.points {
                 match index.add(point.id, point.vector) {
                     Ok(_) => upserted += 1,
                     Err(e) => errors.push(format!("Point {}: {}", point.id, e)),
                 }
             }
-            
+
             Ok(Json(ApiResponse {
                 success: errors.is_empty(),
                 data: Some(serde_json::json!({
@@ -320,15 +323,16 @@ async fn search_points(
 ) -> Result<Json<ApiResponse<SearchResponse>>, StatusCode> {
     let start = std::time::Instant::now();
     let indexes = state.indexes.lock().unwrap();
-    
+
     match indexes.get(&collection_name) {
         Some(index_arc) => {
             // Parse query vector
-            let query_vector: Result<Vec<f32>, _> = params.vector
+            let query_vector: Result<Vec<f32>, _> = params
+                .vector
                 .split(',')
                 .map(|s| s.trim().parse::<f32>())
                 .collect();
-            
+
             match query_vector {
                 Ok(qv) => {
                     let index = index_arc.lock().unwrap();
@@ -342,7 +346,7 @@ async fn search_points(
                                     payload: None,
                                 })
                                 .collect();
-                            
+
                             Ok(Json(ApiResponse {
                                 success: true,
                                 data: Some(SearchResponse {
@@ -376,7 +380,8 @@ async fn search_points(
 
 /// Serve static HTML for API documentation
 async fn api_docs() -> Html<&'static str> {
-    Html(r#"
+    Html(
+        r#"
 <!DOCTYPE html>
 <html>
 <head>
@@ -463,7 +468,8 @@ FT.SEARCH myindex "0.1,0.2,0.3,..."
     </pre>
 </body>
 </html>
-    "#)
+    "#,
+    )
 }
 
 // ============================================================================
@@ -516,14 +522,14 @@ impl VectorService for VectorServiceImpl {
     ) -> Result<Response<grpc::CreateCollectionResponse>, Status> {
         let req = request.into_inner();
         let mut indexes = self.state.indexes.lock().unwrap();
-        
+
         if indexes.contains_key(&req.collection_name) {
             return Ok(Response::new(grpc::CreateCollectionResponse {
                 success: true,
                 message: format!("Collection '{}' already exists", req.collection_name),
             }));
         }
-        
+
         #[cfg(feature = "hnsw-backend")]
         {
             let metric = match req.distance.to_lowercase().as_str() {
@@ -531,11 +537,11 @@ impl VectorService for VectorServiceImpl {
                 "innerproduct" | "ip" | "dot" => VectorMetric::InnerProduct,
                 _ => VectorMetric::Cosine,
             };
-            
+
             let index = HnswVectorIndex::new(req.vector_size as usize, metric, Some(16), Some(200));
             indexes.insert(req.collection_name.clone(), Arc::new(Mutex::new(index)));
         }
-        
+
         Ok(Response::new(grpc::CreateCollectionResponse {
             success: true,
             message: format!("Collection '{}' created", req.collection_name),
@@ -548,18 +554,18 @@ impl VectorService for VectorServiceImpl {
     ) -> Result<Response<grpc::UpsertResponse>, Status> {
         let req = request.into_inner();
         let indexes = self.state.indexes.lock().unwrap();
-        
+
         match indexes.get(&req.collection_name) {
             Some(index_arc) => {
                 let mut index = index_arc.lock().unwrap();
                 let mut upserted = 0u32;
-                
+
                 for point in req.points {
                     if index.add(point.id, point.vector).is_ok() {
                         upserted += 1;
                     }
                 }
-                
+
                 Ok(Response::new(grpc::UpsertResponse {
                     success: true,
                     upserted_count: upserted,
@@ -578,7 +584,7 @@ impl VectorService for VectorServiceImpl {
     ) -> Result<Response<grpc::SearchResponse>, Status> {
         let req = request.into_inner();
         let indexes = self.state.indexes.lock().unwrap();
-        
+
         match indexes.get(&req.collection_name) {
             Some(index_arc) => {
                 let index = index_arc.lock().unwrap();
@@ -592,7 +598,7 @@ impl VectorService for VectorServiceImpl {
                                 payload: HashMap::new(),
                             })
                             .collect();
-                        
+
                         Ok(Response::new(grpc::SearchResponse {
                             results: scored_points,
                         }))
@@ -613,7 +619,7 @@ impl VectorService for VectorServiceImpl {
     ) -> Result<Response<grpc::GetCollectionInfoResponse>, Status> {
         let req = request.into_inner();
         let indexes = self.state.indexes.lock().unwrap();
-        
+
         match indexes.get(&req.collection_name) {
             Some(index_arc) => {
                 let index = index_arc.lock().unwrap();
@@ -637,9 +643,11 @@ impl VectorService for VectorServiceImpl {
     ) -> Result<Response<grpc::DeleteCollectionResponse>, Status> {
         let req = request.into_inner();
         let mut indexes = self.state.indexes.lock().unwrap();
-        
+
         match indexes.remove(&req.collection_name) {
-            Some(_) => Ok(Response::new(grpc::DeleteCollectionResponse { success: true })),
+            Some(_) => Ok(Response::new(grpc::DeleteCollectionResponse {
+                success: true,
+            })),
             None => Err(Status::not_found(format!(
                 "Collection '{}' not found",
                 req.collection_name
@@ -683,7 +691,7 @@ pub async fn start_api_servers(
     config: ApiConfig,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let state = ApiState::new(db);
-    
+
     // Start REST server
     if config.rest_enabled {
         let rest_state = state.clone();
@@ -694,10 +702,12 @@ pub async fn start_api_servers(
                 .await
                 .expect("Failed to bind REST server");
             println!("📊 REST API: http://localhost:{}", rest_port);
-            axum::serve(listener, app).await.expect("REST server failed");
+            axum::serve(listener, app)
+                .await
+                .expect("REST server failed");
         });
     }
-    
+
     // Start gRPC server
     if config.grpc_enabled {
         let grpc_state = state.clone();
@@ -713,7 +723,6 @@ pub async fn start_api_servers(
                 .expect("gRPC server failed");
         });
     }
-    
+
     Ok(())
 }
-

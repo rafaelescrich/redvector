@@ -161,4 +161,3 @@ impl GpuConfig {
         self
     }
 }
-

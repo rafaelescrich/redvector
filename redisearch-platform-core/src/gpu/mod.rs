@@ -39,10 +39,10 @@
 //! ```
 
 pub mod config;
-pub mod traits;
 pub mod distance;
 pub mod flat_index;
 pub mod memory;
+pub mod traits;
 
 #[cfg(feature = "gpu-wgpu")]
 pub mod wgpu_backend;
@@ -55,11 +55,11 @@ pub mod quantization;
 
 // Re-exports
 pub use config::{GpuBackend, GpuConfig, GpuDeviceInfo};
-pub use traits::{GpuVectorIndex, SearchResult};
 pub use distance::DistanceMetric;
 pub use flat_index::GpuFlatIndex;
-pub use ivf::{IvfConfig, GpuIvfIndex};
+pub use ivf::{GpuIvfIndex, IvfConfig};
 pub use quantization::{QuantizerType, Sq8Quantizer};
+pub use traits::{GpuVectorIndex, SearchResult};
 
 /// GPU module error type
 #[derive(Debug, thiserror::Error)]
@@ -130,4 +130,3 @@ pub fn enumerate_devices() -> Vec<GpuDeviceInfo> {
 
     devices
 }
-

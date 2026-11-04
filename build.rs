@@ -58,7 +58,6 @@ fn main() {
     #[cfg(feature = "api-server")]
     {
         println!("cargo:rerun-if-changed=proto/redvector.proto");
-        tonic_build::compile_protos("proto/redvector.proto")
-            .expect("Failed to compile protobuf");
+        tonic_build::compile_protos("proto/redvector.proto").expect("Failed to compile protobuf");
     }
 }

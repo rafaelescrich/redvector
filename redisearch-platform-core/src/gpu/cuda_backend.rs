@@ -106,12 +106,7 @@ impl CudaContext {
     }
 
     /// Load PTX module
-    pub fn load_ptx(
-        &self,
-        ptx: &str,
-        module_name: &str,
-        func_names: &[&str],
-    ) -> Result<()> {
+    pub fn load_ptx(&self, ptx: &str, module_name: &str, func_names: &[&str]) -> Result<()> {
         let ptx = cudarc::nvrtc::Ptx::from_src(ptx);
         self.device
             .load_ptx(ptx, module_name, func_names)
@@ -206,4 +201,3 @@ extern "C" __global__ void inner_product(
 }
 "#;
 }
-

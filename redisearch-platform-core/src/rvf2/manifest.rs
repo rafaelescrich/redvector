@@ -264,4 +264,3 @@ mod tests {
         assert_eq!(CodecType::default(), CodecType::Sq8);
     }
 }
-

@@ -105,7 +105,7 @@ impl ObjectStore for LocalFsStore {
 }
 
 /// S3-compatible object store (AWS S3, MinIO, etc.)
-/// 
+///
 /// Requires `aws-sdk-s3` dependency (behind feature flag)
 #[cfg(feature = "s3")]
 pub struct S3ObjectStore {
@@ -277,4 +277,3 @@ mod tests {
         assert!(!store.exists("test/file.txt").await.unwrap());
     }
 }
-

@@ -407,11 +407,7 @@ mod tests {
         let mut quantizer = Sq8Quantizer::new(4);
 
         // Training data
-        let training = vec![
-            0.0, 0.0, 0.0, 0.0,
-            1.0, 1.0, 1.0, 1.0,
-            0.5, 0.5, 0.5, 0.5,
-        ];
+        let training = vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5];
 
         quantizer.train(&training);
         assert!(quantizer.is_trained());
@@ -458,4 +454,3 @@ mod tests {
         assert_eq!(decoded.len(), 8);
     }
 }
-

@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 
 use super::{
-    DistanceMetric, GpuConfig, GpuError, GpuVectorIndex, Result, SearchResult,
-    memory::AlignedVectors,
+    memory::AlignedVectors, DistanceMetric, GpuConfig, GpuError, GpuVectorIndex, Result,
+    SearchResult,
 };
 
 /// GPU Flat Index for exact nearest neighbor search
@@ -535,4 +535,3 @@ mod tests {
         assert!((results[0].score - 1.0).abs() < 0.01); // Cosine similarity = 1
     }
 }
-

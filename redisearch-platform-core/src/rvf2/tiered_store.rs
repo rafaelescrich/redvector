@@ -3,12 +3,12 @@
 //! Manages hot (mmap), warm (local cache), and cold (object store) tiers
 //! for RVF2 segments.
 
+use bytes::Bytes;
+use memmap2::Mmap;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use bytes::Bytes;
-use memmap2::Mmap;
 
 use crate::rvf2::object_store::ObjectStore;
 use crate::rvf2::segment::Segment;
@@ -217,7 +217,9 @@ impl TieredStore {
         }
 
         // 3. Fetch from cold tier
-        let object_store = self.object_store.as_ref()
+        let object_store = self
+            .object_store
+            .as_ref()
             .ok_or_else(|| Rvf2Error::SegmentNotFound { segment_id })?;
 
         let key = self.cold_key(segment_id);
@@ -225,7 +227,9 @@ impl TieredStore {
         let size = bytes.len() as u64;
 
         // Write to warm cache (local file)
-        let cache_path = self.hot_dir.join(format!("cache_seg_{:06}.rvf2", segment_id));
+        let cache_path = self
+            .hot_dir
+            .join(format!("cache_seg_{:06}.rvf2", segment_id));
         if let Some(parent) = cache_path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
@@ -261,12 +265,7 @@ impl TieredStore {
     }
 
     /// Read byte range from segment (for partial reads)
-    pub async fn read_range(
-        &self,
-        segment_id: u32,
-        offset: u64,
-        len: u64,
-    ) -> Result<Bytes> {
+    pub async fn read_range(&self, segment_id: u32, offset: u64, len: u64) -> Result<Bytes> {
         // Try to get full segment first (uses caching)
         let segment = self.get_segment(segment_id).await?;
 
@@ -281,7 +280,9 @@ impl TieredStore {
             )));
         }
 
-        Ok(Bytes::copy_from_slice(&segment.segment.as_slice()[start..end]))
+        Ok(Bytes::copy_from_slice(
+            &segment.segment.as_slice()[start..end],
+        ))
     }
 
     /// Prefetch segments to warm cache
@@ -301,7 +302,9 @@ impl TieredStore {
         }
 
         // Fetch and save to hot tier
-        let object_store = self.object_store.as_ref()
+        let object_store = self
+            .object_store
+            .as_ref()
             .ok_or_else(|| Rvf2Error::SegmentNotFound { segment_id })?;
 
         let key = self.cold_key(segment_id);
@@ -326,7 +329,9 @@ impl TieredStore {
 
     /// Upload segment to cold tier
     pub async fn upload(&self, segment_id: u32, data: Bytes) -> Result<()> {
-        let object_store = self.object_store.as_ref()
+        let object_store = self
+            .object_store
+            .as_ref()
             .ok_or_else(|| Rvf2Error::ObjectStore("No object store configured".into()))?;
 
         let key = self.cold_key(segment_id);
@@ -418,4 +423,3 @@ mod tests {
         assert_eq!(stats.cold_fetches, 0);
     }
 }
-

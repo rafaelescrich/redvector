@@ -101,10 +101,7 @@ impl From<ParseFloatError> for ParseError {
 
 impl OwnedParsedCommand {
     pub fn new(data: Vec<u8>, argv: Vec<Argument>) -> Self {
-        OwnedParsedCommand {
-            data,
-            argv,
-        }
+        OwnedParsedCommand { data, argv }
     }
 
     pub fn get_command(&self) -> ParsedCommand<'_> {

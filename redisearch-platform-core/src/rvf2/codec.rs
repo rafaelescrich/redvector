@@ -137,11 +137,9 @@ impl Codec for Sq8Codec {
         for block_idx in 0..n_blocks {
             // Read scale
             let scale_offset = block_idx * 2;
-            let scale = f16::from_le_bytes([
-                encoded.aux[scale_offset],
-                encoded.aux[scale_offset + 1],
-            ])
-            .to_f32();
+            let scale =
+                f16::from_le_bytes([encoded.aux[scale_offset], encoded.aux[scale_offset + 1]])
+                    .to_f32();
             let scale_factor = scale / 127.0;
 
             // Decode vectors in block
@@ -221,10 +219,7 @@ pub struct Fp32Codec;
 impl Codec for Fp32Codec {
     fn encode(&self, vectors: &[f32], dims: usize) -> Result<EncodedVectors> {
         let n_vectors = vectors.len() / dims;
-        let codes: Vec<u8> = vectors
-            .iter()
-            .flat_map(|v| v.to_le_bytes())
-            .collect();
+        let codes: Vec<u8> = vectors.iter().flat_map(|v| v.to_le_bytes()).collect();
 
         Ok(EncodedVectors {
             codes,
@@ -312,4 +307,3 @@ mod tests {
         }
     }
 }
-

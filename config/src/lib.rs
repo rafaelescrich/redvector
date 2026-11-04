@@ -143,7 +143,7 @@ impl Config {
             no_appendfsync_on_rewrite: false,
             auto_aof_rewrite_percentage: 100,
             auto_aof_rewrite_min_size: 67108864, // 64MB
-            slowlog_log_slower_than: 10000, // microseconds
+            slowlog_log_slower_than: 10000,      // microseconds
             slowlog_max_len: 128,
             latency_monitor_threshold: 0,
             hash_max_ziplist_entries: 512,
@@ -257,8 +257,12 @@ impl Config {
                     if args.len() == 3 {
                         let seconds_str = from_utf8(&*args[1])?.to_owned();
                         let changes_str = from_utf8(&*args[2])?.to_owned();
-                        let seconds: u64 = seconds_str.parse().map_err(|_| ConfigError::InvalidParameter)?;
-                        let changes: u64 = changes_str.parse().map_err(|_| ConfigError::InvalidParameter)?;
+                        let seconds: u64 = seconds_str
+                            .parse()
+                            .map_err(|_| ConfigError::InvalidParameter)?;
+                        let changes: u64 = changes_str
+                            .parse()
+                            .map_err(|_| ConfigError::InvalidParameter)?;
                         self.save.push((seconds, changes));
                     } else {
                         return Err(ConfigError::InvalidFormat);
@@ -280,13 +284,17 @@ impl Config {
                         _ => return Err(ConfigError::InvalidParameter),
                     }
                 }
-                b"stop-writes-on-bgsave-error" => self.stop_writes_on_bgsave_error = read_bool(args)?,
+                b"stop-writes-on-bgsave-error" => {
+                    self.stop_writes_on_bgsave_error = read_bool(args)?
+                }
                 b"rdbcompression" => self.rdbcompression = read_bool(args)?,
                 b"rdbchecksum" => self.rdbchecksum = read_bool(args)?,
                 b"maxclients" => self.maxclients = read_parse(args)?,
                 b"maxmemory-samples" => self.maxmemory_samples = read_parse(args)?,
                 b"no-appendfsync-on-rewrite" => self.no_appendfsync_on_rewrite = read_bool(args)?,
-                b"auto-aof-rewrite-percentage" => self.auto_aof_rewrite_percentage = read_parse(args)?,
+                b"auto-aof-rewrite-percentage" => {
+                    self.auto_aof_rewrite_percentage = read_parse(args)?
+                }
                 b"auto-aof-rewrite-min-size" => self.auto_aof_rewrite_min_size = read_parse(args)?,
                 b"slowlog-log-slower-than" => self.slowlog_log_slower_than = read_parse(args)?,
                 b"slowlog-max-len" => self.slowlog_max_len = read_parse(args)?,
@@ -297,7 +305,9 @@ impl Config {
                 b"list-max-ziplist-value" => self.list_max_ziplist_value = read_parse(args)?,
                 b"zset-max-ziplist-entries" => self.zset_max_ziplist_entries = read_parse(args)?,
                 b"zset-max-ziplist-value" => self.zset_max_ziplist_value = read_parse(args)?,
-                b"notify-keyspace-events" => self.notify_keyspace_events = read_string(args)?.to_owned(),
+                b"notify-keyspace-events" => {
+                    self.notify_keyspace_events = read_string(args)?.to_owned()
+                }
                 b"storage-mode" => {
                     let val = read_string(args)?;
                     match &*val.to_ascii_lowercase() {

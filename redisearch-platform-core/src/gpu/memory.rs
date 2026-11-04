@@ -296,4 +296,3 @@ mod tests {
         assert_eq!(av.raw_data().len(), 8); // 2 vectors × 4 stride
     }
 }
-

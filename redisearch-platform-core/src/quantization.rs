@@ -4,10 +4,10 @@
 //! allowing high-dimensional vectors to be compressed into small codes
 //! for memory-efficient search.
 
+use crate::simd_metrics::euclidean_distance_simd;
 use anyhow::Result;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use crate::simd_metrics::euclidean_distance_simd;
 
 /// PQ configuration and codebooks
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -26,29 +26,32 @@ impl ProductQuantizer {
         if vectors.is_empty() {
             anyhow::bail!("Cannot train PQ on empty vector set");
         }
-        
+
         let dimension = vectors[0].len();
         if dimension % num_subspaces != 0 {
-            anyhow::bail!("Dimension {} must be divisible by num_subspaces {}", dimension, num_subspaces);
+            anyhow::bail!(
+                "Dimension {} must be divisible by num_subspaces {}",
+                dimension,
+                num_subspaces
+            );
         }
-        
+
         let subspace_dim = dimension / num_subspaces;
         let mut codebooks = Vec::with_capacity(num_subspaces);
-        
+
         for m in 0..num_subspaces {
             let start = m * subspace_dim;
             let end = start + subspace_dim;
-            
+
             // Extract subspace vectors for training
-            let subspace_vectors: Vec<Vec<f32>> = vectors.iter()
-                .map(|v| v[start..end].to_vec())
-                .collect();
-            
+            let subspace_vectors: Vec<Vec<f32>> =
+                vectors.iter().map(|v| v[start..end].to_vec()).collect();
+
             // Train k-means for this subspace
             let centroids = train_kmeans(&subspace_vectors, num_clusters, 10)?;
             codebooks.push(centroids);
         }
-        
+
         Ok(Self {
             dimension,
             num_subspaces,
@@ -57,20 +60,20 @@ impl ProductQuantizer {
             codebooks,
         })
     }
-    
+
     /// Encode a full vector into a PQ code
     pub fn encode(&self, vector: &[f32]) -> Vec<u8> {
         let mut code = Vec::with_capacity(self.num_subspaces);
-        
+
         for m in 0..self.num_subspaces {
             let start = m * self.subspace_dim;
             let end = start + self.subspace_dim;
             let subspace_vec = &vector[start..end];
-            
+
             // Find nearest centroid in this subspace
             let mut min_dist = f32::MAX;
             let mut best_cluster = 0;
-            
+
             for (i, centroid) in self.codebooks[m].iter().enumerate() {
                 let dist = euclidean_distance_simd(subspace_vec, centroid);
                 if dist < min_dist {
@@ -78,28 +81,28 @@ impl ProductQuantizer {
                     best_cluster = i;
                 }
             }
-            
+
             code.push(best_cluster as u8);
         }
-        
+
         code
     }
-    
+
     /// Compute distance between a query vector and a PQ code (ADC: Asymmetric Distance Computation)
     pub fn distance_adc(&self, query: &[f32], code: &[u8]) -> f32 {
         let mut total_dist_sq = 0.0;
-        
+
         for m in 0..self.num_subspaces {
             let start = m * self.subspace_dim;
             let end = start + self.subspace_dim;
             let query_subspace = &query[start..end];
             let centroid = &self.codebooks[m][code[m] as usize];
-            
+
             // Use squared distance for speed, take sqrt at the end if needed
             let d = euclidean_distance_simd(query_subspace, centroid);
             total_dist_sq += d * d;
         }
-        
+
         total_dist_sq.sqrt()
     }
 
@@ -110,7 +113,7 @@ impl ProductQuantizer {
             let start = m * self.subspace_dim;
             let end = start + self.subspace_dim;
             let query_subspace = &query[start..end];
-            
+
             let mut subspace_dists = Vec::with_capacity(self.num_clusters);
             for centroid in &self.codebooks[m] {
                 subspace_dists.push(euclidean_distance_simd(query_subspace, centroid));
@@ -134,26 +137,28 @@ impl ProductQuantizer {
 /// Simple K-means implementation for codebook training
 fn train_kmeans(data: &[Vec<f32>], k: usize, max_iters: usize) -> Result<Vec<Vec<f32>>> {
     if data.len() < k {
-        anyhow::bail!("Not enough data to train k-means (needed {}, got {})", k, data.len());
+        anyhow::bail!(
+            "Not enough data to train k-means (needed {}, got {})",
+            k,
+            data.len()
+        );
     }
-    
+
     let dim = data[0].len();
     let mut rng = thread_rng();
-    
+
     // Initialize centroids by picking random points
-    let mut centroids: Vec<Vec<f32>> = data.choose_multiple(&mut rng, k)
-        .cloned()
-        .collect();
-    
+    let mut centroids: Vec<Vec<f32>> = data.choose_multiple(&mut rng, k).cloned().collect();
+
     for _ in 0..max_iters {
         let mut new_centroids = vec![vec![0.0; dim]; k];
         let mut counts = vec![0; k];
-        
+
         // Assignment step
         for point in data {
             let mut min_dist = f32::MAX;
             let mut best_k = 0;
-            
+
             for (i, centroid) in centroids.iter().enumerate() {
                 let dist = euclidean_distance_simd(point, centroid);
                 if dist < min_dist {
@@ -161,13 +166,13 @@ fn train_kmeans(data: &[Vec<f32>], k: usize, max_iters: usize) -> Result<Vec<Vec
                     best_k = i;
                 }
             }
-            
+
             for d in 0..dim {
                 new_centroids[best_k][d] += point[d];
             }
             counts[best_k] += 1;
         }
-        
+
         // Update step
         let mut changed = false;
         for i in 0..k {
@@ -181,12 +186,12 @@ fn train_kmeans(data: &[Vec<f32>], k: usize, max_iters: usize) -> Result<Vec<Vec
                 }
             }
         }
-        
+
         if !changed {
             break;
         }
     }
-    
+
     Ok(centroids)
 }
 

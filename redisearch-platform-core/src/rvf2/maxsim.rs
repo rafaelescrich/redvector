@@ -98,11 +98,7 @@ impl MaxSimScorer {
     }
 
     /// Batch MaxSim for multiple candidates
-    pub fn compute_batch(
-        &self,
-        query_tokens: &[f32],
-        candidates: &[&[f32]],
-    ) -> Vec<f32> {
+    pub fn compute_batch(&self, query_tokens: &[f32], candidates: &[&[f32]]) -> Vec<f32> {
         candidates
             .iter()
             .map(|patches| self.compute(query_tokens, patches))
@@ -118,10 +114,7 @@ impl MaxSimScorer {
     /// Dot product: f32 × i8 -> f32 (scalar)
     #[inline]
     fn dot_product_f32_i8_scalar(a: &[f32], b: &[i8]) -> f32 {
-        a.iter()
-            .zip(b.iter())
-            .map(|(&x, &y)| x * y as f32)
-            .sum()
+        a.iter().zip(b.iter()).map(|(&x, &y)| x * y as f32).sum()
     }
 }
 
@@ -224,7 +217,11 @@ impl SimdMaxSimScorer {
     /// SIMD-accelerated dot product
     #[inline]
     fn dot_product(&self, a: &[f32], b: &[f32]) -> f32 {
-        #[cfg(all(target_arch = "x86_64", target_feature = "avx2", target_feature = "fma"))]
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        ))]
         {
             if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
                 return unsafe { dot_f32_avx2_fma(a, b) };
@@ -286,10 +283,7 @@ unsafe fn dot_f32_avx2_fma(a: &[f32], b: &[f32]) -> f32 {
     }
 
     // Horizontal sum of 256-bit register
-    let sum128 = _mm_add_ps(
-        _mm256_extractf128_ps(sum, 0),
-        _mm256_extractf128_ps(sum, 1),
-    );
+    let sum128 = _mm_add_ps(_mm256_extractf128_ps(sum, 0), _mm256_extractf128_ps(sum, 1));
     let sum64 = _mm_add_ps(sum128, _mm_movehl_ps(sum128, sum128));
     let sum32 = _mm_add_ss(sum64, _mm_shuffle_ps(sum64, sum64, 1));
     let mut result = _mm_cvtss_f32(sum32);
@@ -334,10 +328,7 @@ unsafe fn dot_f32_i8_avx2(a: &[f32], b: &[i8]) -> f32 {
     }
 
     // Horizontal sum
-    let sum128 = _mm_add_ps(
-        _mm256_extractf128_ps(sum, 0),
-        _mm256_extractf128_ps(sum, 1),
-    );
+    let sum128 = _mm_add_ps(_mm256_extractf128_ps(sum, 0), _mm256_extractf128_ps(sum, 1));
     let sum64 = _mm_add_ps(sum128, _mm_movehl_ps(sum128, sum128));
     let sum32 = _mm_add_ss(sum64, _mm_shuffle_ps(sum64, sum64, 1));
     let mut result = _mm_cvtss_f32(sum32);

@@ -16,18 +16,18 @@ extern crate util;
 #[cfg(feature = "hnsw-backend")]
 extern crate hnsw_rs;
 
-pub mod dbutil;
 pub mod bloom;
+pub mod dbutil;
 pub mod error;
 pub mod hash;
 pub mod list;
 pub mod set;
 pub mod string;
-pub mod zset;
 #[cfg(feature = "hnsw-backend")]
 pub mod vector_index;
 #[cfg(all(test, feature = "hnsw-backend"))]
 mod vector_index_test;
+pub mod zset;
 
 use std::collections::Bound;
 use std::collections::HashMap;
@@ -48,8 +48,8 @@ use rehashinghashmap::RehashingHashMap;
 use response::Response;
 use util::{get_random_hex_chars, glob_match, mstime};
 
-use error::OperationError;
 use bloom::ValueBloom;
+use error::OperationError;
 use hash::ValueHash;
 use list::ValueList;
 use rdbutil::encode_u64_to_slice_u8;
@@ -1363,7 +1363,12 @@ impl Value {
 
     /// Scan set members with cursor-based iteration.
     /// Returns (next_cursor, members) where next_cursor is 0 when done.
-    pub fn sscan(&self, cursor: usize, pattern: Option<&[u8]>, count: usize) -> Result<(usize, Vec<Vec<u8>>), OperationError> {
+    pub fn sscan(
+        &self,
+        cursor: usize,
+        pattern: Option<&[u8]>,
+        count: usize,
+    ) -> Result<(usize, Vec<Vec<u8>>), OperationError> {
         match self {
             Value::Nil => Ok((0, Vec::new())),
             Value::Set(set) => Ok(set.sscan(cursor, pattern, count)),
@@ -1373,7 +1378,12 @@ impl Value {
 
     /// Scan hash fields and values with cursor-based iteration.
     /// Returns (next_cursor, fields_and_values) where next_cursor is 0 when done.
-    pub fn hscan(&self, cursor: usize, pattern: Option<&[u8]>, count: usize) -> Result<(usize, Vec<Vec<u8>>), OperationError> {
+    pub fn hscan(
+        &self,
+        cursor: usize,
+        pattern: Option<&[u8]>,
+        count: usize,
+    ) -> Result<(usize, Vec<Vec<u8>>), OperationError> {
         match self {
             Value::Nil => Ok((0, Vec::new())),
             Value::Hash(hash) => Ok(hash.hscan(cursor, pattern, count)),
@@ -1383,7 +1393,12 @@ impl Value {
 
     /// Scan sorted set members with scores using cursor-based iteration.
     /// Returns (next_cursor, members_with_scores) where next_cursor is 0 when done.
-    pub fn zscan(&self, cursor: usize, pattern: Option<&[u8]>, count: usize) -> Result<(usize, Vec<Vec<u8>>), OperationError> {
+    pub fn zscan(
+        &self,
+        cursor: usize,
+        pattern: Option<&[u8]>,
+        count: usize,
+    ) -> Result<(usize, Vec<Vec<u8>>), OperationError> {
         match self {
             Value::Nil => Ok((0, Vec::new())),
             Value::SortedSet(zset) => Ok(zset.zscan(cursor, pattern, count)),
@@ -2210,11 +2225,11 @@ impl Database {
     fn estimate_value_size(value: &Value, key_size: usize) -> u64 {
         // Base overhead: key size + hashmap overhead (approx 24 bytes per entry)
         let mut size = key_size as u64 + 24;
-        
+
         match value {
             Value::String(v) => {
                 size += match v {
-                    ValueString::Integer(_) => 8, // i64
+                    ValueString::Integer(_) => 8,               // i64
                     ValueString::Data(d) => d.len() as u64 + 8, // Vec overhead
                 };
             }
@@ -2242,7 +2257,10 @@ impl Database {
                 size += match z {
                     ValueSortedSet::Data(sl, hmap) => {
                         // SkipList overhead: ~40 bytes per node + data
-                        let skiplist_size = sl.iter().map(|m| m.get_vec().len() as u64 + 40).sum::<u64>();
+                        let skiplist_size = sl
+                            .iter()
+                            .map(|m| m.get_vec().len() as u64 + 40)
+                            .sum::<u64>();
                         // HashMap overhead: ~24 bytes per entry
                         let hmap_size = hmap.len() as u64 * 24;
                         skiplist_size + hmap_size
@@ -2254,7 +2272,9 @@ impl Database {
                 size += match h {
                     ValueHash::HashMap(map) => {
                         // HashMap overhead: ~24 bytes per entry + key + value
-                        map.iter().map(|(k, v)| k.len() as u64 + v.len() as u64 + 24).sum::<u64>()
+                        map.iter()
+                            .map(|(k, v)| k.len() as u64 + v.len() as u64 + 24)
+                            .sum::<u64>()
                     }
                     ValueHash::ZipList(zl) => {
                         // Ziplist is more compact - just the serialized data size
@@ -2267,7 +2287,7 @@ impl Database {
             }
             Value::Nil => size += 0,
         }
-        
+
         size
     }
 
@@ -2302,10 +2322,10 @@ impl Database {
                     let db_data = &self.data[index];
                     let expirations = &self.data_expiration_ms[index];
                     let lru_data = &self.key_lru[index];
-                    
+
                     for key in db_data.keys() {
                         let is_volatile = expirations.contains_key(key);
-                        
+
                         // Filter by policy
                         let should_include = match policy {
                             "volatile-lru" | "volatile-random" | "volatile-ttl" => is_volatile,
@@ -2320,12 +2340,10 @@ impl Database {
                         if let Some(value) = db_data.get(key) {
                             let lru = lru_data.get(key).copied().unwrap_or(0);
                             let size = Database::estimate_value_size(value, key.len());
-                            
+
                             let score = match policy {
                                 "volatile-lru" | "allkeys-lru" => lru, // Lower is better (older)
-                                "volatile-ttl" => {
-                                    expirations.get(key).copied().unwrap_or(i64::MAX)
-                                }
+                                "volatile-ttl" => expirations.get(key).copied().unwrap_or(i64::MAX),
                                 _ => 0, // Random, score doesn't matter
                             };
 
@@ -2473,7 +2491,7 @@ impl Database {
 
         self.data_expiration_ms[index].remove(key);
         self.key_lru[index].remove(key);
-        
+
         if self.config.active_rehashing {
             if self.data[index].len() * 10 / 12 < self.data[index].capacity() {
                 self.data[index].shrink_to_fit();
@@ -2852,7 +2870,7 @@ impl Database {
         if events.is_empty() {
             return false;
         }
-        
+
         // Handle 'A' alias - expands to all event types
         if events.contains('A') {
             match flag {
@@ -2860,12 +2878,18 @@ impl Database {
                 _ => {}
             }
         }
-        
+
         events.contains(flag)
     }
 
     /// Publishes keyspace notifications for a key operation
-    pub fn notify_keyspace_event(&self, dbindex: usize, event_type: &str, key: &[u8], command_type: Option<char>) {
+    pub fn notify_keyspace_event(
+        &self,
+        dbindex: usize,
+        event_type: &str,
+        key: &[u8],
+        command_type: Option<char>,
+    ) {
         let events = &self.config.notify_keyspace_events;
         if events.is_empty() {
             return;
@@ -2959,18 +2983,24 @@ impl Database {
 
     /// Scan keys from a database with cursor-based iteration.
     /// Returns (next_cursor, keys) where next_cursor is 0 when done.
-    pub fn scan(&self, dbindex: usize, cursor: usize, pattern: Option<&[u8]>, count: usize) -> (usize, Vec<Vec<u8>>) {
+    pub fn scan(
+        &self,
+        dbindex: usize,
+        cursor: usize,
+        pattern: Option<&[u8]>,
+        count: usize,
+    ) -> (usize, Vec<Vec<u8>>) {
         let iter = self.iter_db(dbindex);
         let all_keys: Vec<_> = iter.map(|(k, _)| k.clone()).collect();
         let total = all_keys.len();
-        
+
         if cursor >= total {
             return (0, Vec::new());
         }
-        
+
         let end = std::cmp::min(cursor + count, total);
         let mut result = Vec::new();
-        
+
         for i in cursor..end {
             let key = &all_keys[i];
             if let Some(pat) = pattern {
@@ -2981,7 +3011,7 @@ impl Database {
                 result.push(key.clone());
             }
         }
-        
+
         let next_cursor = if end >= total { 0 } else { end };
         (next_cursor, result)
     }
@@ -3078,7 +3108,7 @@ impl Database {
         let threshold = self.config.slowlog_log_slower_than;
         if threshold > 0 && duration_us >= threshold as u64 {
             let max_len = self.config.slowlog_max_len as usize;
-            
+
             // Extract command arguments
             let mut cmd_args = Vec::new();
             for i in 0..command.argv.len() {
@@ -3086,7 +3116,7 @@ impl Database {
                     cmd_args.push(arg);
                 }
             }
-            
+
             let entry = SlowLogEntry {
                 id: self.slowlog_id,
                 timestamp: mstime() / 1000, // Convert to seconds
@@ -3095,10 +3125,10 @@ impl Database {
                 client_addr,
                 client_name,
             };
-            
+
             self.slowlog_id += 1;
             self.slowlog.push(entry);
-            
+
             // Maintain circular buffer - remove oldest entries if over limit
             while self.slowlog.len() > max_len {
                 self.slowlog.remove(0);

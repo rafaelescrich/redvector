@@ -148,4 +148,3 @@ mod tests {
         assert_eq!(batches[3].len(), 10); // 1 vector × 10 dims (remainder)
     }
 }
-

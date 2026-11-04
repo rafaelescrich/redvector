@@ -180,7 +180,9 @@ impl DocIndex {
 
         while left < right {
             let mid = left + (right - left) / 2;
-            let entry = self.get_by_index(mid).ok_or(Rvf2Error::DocNotFound { doc_id })?;
+            let entry = self
+                .get_by_index(mid)
+                .ok_or(Rvf2Error::DocNotFound { doc_id })?;
 
             if entry.doc_id == doc_id {
                 if entry.is_tombstone() {
@@ -315,8 +317,7 @@ impl DocIndexBuilder {
 
         // Write entries
         let entries_ptr = unsafe {
-            mmap.as_mut_ptr()
-                .add(std::mem::size_of::<DocIndexHeader>()) as *mut DocEntry
+            mmap.as_mut_ptr().add(std::mem::size_of::<DocIndexHeader>()) as *mut DocEntry
         };
 
         for (i, entry) in self.entries.iter().enumerate() {
@@ -388,4 +389,3 @@ mod tests {
         assert!(entry.is_tombstone());
     }
 }
-

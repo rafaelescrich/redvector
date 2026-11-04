@@ -2,7 +2,7 @@
 //!
 //! Supports Vulkan (Linux/Windows), Metal (macOS), and DX12 (Windows).
 
-use super::{GpuDeviceInfo, GpuBackend, GpuError, Result};
+use super::{GpuBackend, GpuDeviceInfo, GpuError, Result};
 
 /// Check if wgpu backend is available
 pub fn is_available() -> bool {
@@ -98,20 +98,27 @@ impl WgpuContext {
     }
 
     /// Create a compute pipeline from WGSL source
-    pub fn create_compute_pipeline(&self, shader_source: &str, entry_point: &str) -> wgpu::ComputePipeline {
-        let shader_module = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Compute Shader"),
-            source: wgpu::ShaderSource::Wgsl(shader_source.into()),
-        });
+    pub fn create_compute_pipeline(
+        &self,
+        shader_source: &str,
+        entry_point: &str,
+    ) -> wgpu::ComputePipeline {
+        let shader_module = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Compute Shader"),
+                source: wgpu::ShaderSource::Wgsl(shader_source.into()),
+            });
 
-        self.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Compute Pipeline"),
-            layout: None,
-            module: &shader_module,
-            entry_point,
-            compilation_options: Default::default(),
-            cache: None,
-        })
+        self.device
+            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Compute Pipeline"),
+                layout: None,
+                module: &shader_module,
+                entry_point,
+                compilation_options: Default::default(),
+                cache: None,
+            })
     }
 
     /// Create a storage buffer
@@ -125,13 +132,18 @@ impl WgpuContext {
     }
 
     /// Create a buffer initialized with data
-    pub fn create_buffer_init<T: bytemuck::Pod>(&self, data: &[T], usage: wgpu::BufferUsages) -> wgpu::Buffer {
+    pub fn create_buffer_init<T: bytemuck::Pod>(
+        &self,
+        data: &[T],
+        usage: wgpu::BufferUsages,
+    ) -> wgpu::Buffer {
         use wgpu::util::DeviceExt;
-        self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Init Buffer"),
-            contents: bytemuck::cast_slice(data),
-            usage,
-        })
+        self.device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Init Buffer"),
+                contents: bytemuck::cast_slice(data),
+                usage,
+            })
     }
 
     /// Submit a compute pass and wait for completion
@@ -141,7 +153,11 @@ impl WgpuContext {
     }
 
     /// Read buffer contents to CPU
-    pub fn read_buffer<T: bytemuck::Pod>(&self, buffer: &wgpu::Buffer, count: usize) -> Result<Vec<T>> {
+    pub fn read_buffer<T: bytemuck::Pod>(
+        &self,
+        buffer: &wgpu::Buffer,
+        count: usize,
+    ) -> Result<Vec<T>> {
         let size = (count * std::mem::size_of::<T>()) as u64;
 
         let staging = self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -194,10 +210,12 @@ impl<'a> ComputeDispatch<'a> {
         bind_group: &wgpu::BindGroup,
         workgroups: (u32, u32, u32),
     ) {
-        let mut pass = self.encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("Compute Pass"),
-            timestamp_writes: None,
-        });
+        let mut pass = self
+            .encoder
+            .begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Compute Pass"),
+                timestamp_writes: None,
+            });
 
         pass.set_pipeline(pipeline);
         pass.set_bind_group(0, bind_group, &[]);
@@ -228,4 +246,3 @@ mod tests {
         }
     }
 }
-

@@ -73,10 +73,7 @@ impl DistanceMetric {
     /// L2 squared distance (avoids sqrt, good for comparison)
     #[inline]
     pub fn l2_squared(a: &[f32], b: &[f32]) -> f32 {
-        a.iter()
-            .zip(b.iter())
-            .map(|(&x, &y)| (x - y).powi(2))
-            .sum()
+        a.iter().zip(b.iter()).map(|(&x, &y)| (x - y).powi(2)).sum()
     }
 
     /// Cosine similarity
@@ -314,4 +311,3 @@ mod tests {
         assert!(DistanceMetric::is_normalized(&v, 1e-5));
     }
 }
-

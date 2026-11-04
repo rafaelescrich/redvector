@@ -150,20 +150,25 @@ impl ValueHash {
     /// Scan hash fields and values with cursor-based iteration.
     /// Returns (next_cursor, fields_and_values) where next_cursor is 0 when done.
     /// The result alternates between field and value.
-    pub fn hscan(&self, cursor: usize, pattern: Option<&[u8]>, count: usize) -> (usize, Vec<Vec<u8>>) {
+    pub fn hscan(
+        &self,
+        cursor: usize,
+        pattern: Option<&[u8]>,
+        count: usize,
+    ) -> (usize, Vec<Vec<u8>>) {
         use util::glob_match;
         match self {
             ValueHash::HashMap(map) => {
                 let all_items: Vec<_> = map.iter().collect();
                 let total = all_items.len();
-                
+
                 if cursor >= total {
                     return (0, Vec::new());
                 }
-                
+
                 let end = std::cmp::min(cursor + count, total);
                 let mut result = Vec::new();
-                
+
                 for i in cursor..end {
                     let (field, value) = all_items[i];
                     if let Some(pat) = pattern {
@@ -176,7 +181,7 @@ impl ValueHash {
                         result.push(value.clone());
                     }
                 }
-                
+
                 let next_cursor = if end >= total { 0 } else { end };
                 (next_cursor, result)
             }
@@ -204,7 +209,9 @@ impl ValueHash {
                 });
 
                 let new_value = match current {
-                    Some(val) => val.checked_add(increment).ok_or(OperationError::OverflowError)?,
+                    Some(val) => val
+                        .checked_add(increment)
+                        .ok_or(OperationError::OverflowError)?,
                     None => increment,
                 };
 
@@ -359,4 +366,3 @@ mod test_hash {
         assert_eq!(hash.hincrbyfloat(b"field1".to_vec(), 3.2).unwrap(), 8.7);
     }
 }
-

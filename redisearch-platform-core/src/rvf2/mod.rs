@@ -61,7 +61,7 @@ pub use codec::{Codec, CodecType, Sq8Codec};
 pub use doc_index::{DocEntry, DocIndex, DocIndexBuilder};
 pub use manifest::{Manifest, SegmentMeta};
 pub use maxsim::{MaxSimScorer, SimdMaxSimScorer};
-pub use segment::{DocRecord, Segment, SegmentHeader, SegmentBuilder};
+pub use segment::{DocRecord, Segment, SegmentBuilder, SegmentHeader};
 pub use tiered_store::{TieredStore, TieredStoreBuilder, TieredStoreStats};
 
 /// RVF2 magic bytes
@@ -115,4 +115,3 @@ pub enum Rvf2Error {
     #[error("Index full: max docs {max}")]
     IndexFull { max: u64 },
 }
-
